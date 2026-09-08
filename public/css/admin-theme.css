@@ -1,0 +1,152 @@
+/*
+ * Skala tampilan panel admin.
+ *
+ * Dimuat sesudah stylesheet Filament (render hook STYLES_AFTER), jadi aturan
+ * di sini menimpa bawaan tanpa perlu !important.
+ *
+ * Dua tuas utama:
+ *   --app-density  : pengali padding dan jarak antar elemen (0.75 = 25% lebih rapat)
+ *   --app-max-width: lebar maksimum kolom konten
+ * Ubah salah satunya, seluruh halaman ikut menyesuaikan.
+ */
+html.fi {
+    /*
+     * Semua ukuran Filament memakai rem, jadi angka ini menentukan skala
+     * font sekaligus tinggi input, tombol, dan ikon secara proporsional.
+     * Breakpoint responsif Tailwind memakai rem terhadap font bawaan browser,
+     * bukan nilai ini, sehingga titik pindah layout tidak bergeser.
+     */
+    font-size: 14px;
+
+    --app-density: 0.75;
+    --app-max-width: 1200px;
+}
+
+.fi-body {
+    line-height: 1.4;
+}
+
+/*
+ * Judul: bawaan Filament naik sampai text-3xl di layar lebar dan terasa
+ * jauh lebih besar dari elemen lain. Diturunkan agar hierarki
+ * judul halaman -> judul kartu -> teks isi tetap terbaca tapi tidak dominan.
+ */
+.fi-header-heading {
+    font-size: 1.5rem;
+    line-height: 1.25;
+}
+
+@media (min-width: 40rem) {
+    .fi-header-heading {
+        font-size: 1.625rem;
+    }
+}
+
+.fi-section-header-heading {
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------------------
+ * Lebar kontainer
+ *
+ * Hanya kolom konten yang dibatasi; topbar dan sidebar tetap selebar layar.
+ * Dipakai satuan px, bukan rem, supaya batasnya tidak ikut mengecil saat
+ * skala font diubah.
+ * ------------------------------------------------------------------------ */
+/*
+ * Filament menempelkan kelas lebar (mis. fi-width-7xl) pada elemen yang sama,
+ * jadi selector di sini disamakan bobotnya dengan memakai [class]
+ * supaya berlaku untuk lebar bawaan apa pun tanpa !important.
+ */
+.fi-main[class] {
+    max-width: var(--app-max-width);
+}
+
+/* ---------------------------------------------------------------------------
+ * Kerapatan: padding dan gap dikalikan --app-density.
+ *
+ * Nilai rem di tiap calc() adalah angka bawaan Filament, jadi perbandingan
+ * antar komponen tetap sama persis -- yang berubah cuma kerapatannya.
+ * Tinggi tombol, input, dan ukuran ikon sengaja tidak diubah agar area klik
+ * tetap nyaman.
+ * ------------------------------------------------------------------------ */
+
+/*
+ * Kartu (Section). Selector di bawah sengaja meniru persis struktur bawaan
+ * Filament -- termasuk bagian :not() -- supaya bobotnya sama dan menang
+ * karena dimuat belakangan, bukan karena !important.
+ * Bawaan: header px-6 py-4, isi p-6, footer px-6 py-4.
+ */
+.fi-section:not(.fi-section-not-contained):not(.fi-aside) > .fi-section-header {
+    padding: calc(1rem * var(--app-density)) calc(1.5rem * var(--app-density));
+}
+
+.fi-section:not(.fi-section-not-contained):not(.fi-divided)
+    > .fi-section-content-ctn
+    > .fi-section-content {
+    padding: calc(1.5rem * var(--app-density));
+}
+
+/* Kartu bergaris memberi padding pada tiap anak, bukan pada wadahnya. */
+.fi-section:not(.fi-section-not-contained).fi-divided
+    > .fi-section-content-ctn
+    > .fi-section-content
+    > * {
+    padding: calc(1.5rem * var(--app-density));
+}
+
+.fi-section:not(.fi-section-not-contained)
+    > .fi-section-content-ctn
+    > .fi-section-footer {
+    padding: calc(1rem * var(--app-density)) calc(1.5rem * var(--app-density));
+}
+
+/* Jarak antar field di dalam skema form (gap-6) */
+.fi-sc.fi-sc-has-gap {
+    gap: calc(1.5rem * var(--app-density));
+}
+
+/* Jarak antar blok di halaman (gap-y-8) dan padding vertikal header halaman */
+.fi-page-content {
+    row-gap: calc(2rem * var(--app-density));
+}
+
+.fi-page-header-main-ctn {
+    row-gap: calc(2rem * var(--app-density));
+    padding-block: calc(2rem * var(--app-density));
+}
+
+/* Padding horizontal kolom konten (px-4 / md:px-6 / lg:px-8) */
+.fi-main {
+    padding-inline: calc(1rem * var(--app-density));
+}
+
+@media (min-width: 48rem) {
+    .fi-main {
+        padding-inline: calc(1.5rem * var(--app-density));
+    }
+}
+
+@media (min-width: 64rem) {
+    .fi-main {
+        padding-inline: calc(2rem * var(--app-density));
+    }
+}
+
+/* Sidebar: px-6 py-8 dengan jarak antar grup gap-y-7 */
+.fi-sidebar-nav {
+    padding: calc(2rem * var(--app-density)) calc(1.5rem * var(--app-density));
+    row-gap: calc(1.75rem * var(--app-density));
+
+    /*
+     * Filament memesan ruang scrollbar secara permanen (scrollbar-gutter: stable).
+     * Pada browser yang menggambar scrollbar gaya klasik, ruang cadangan itu
+     * tampak seperti scrollbar kedua di batas sidebar meski isinya tidak melimpah.
+     */
+    scrollbar-gutter: auto;
+}
+
+.fi-sidebar-nav-groups {
+    row-gap: calc(1.75rem * var(--app-density));
+}
