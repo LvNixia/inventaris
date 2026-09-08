@@ -6,5 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ImportBatch extends Model
 {
+    protected $guarded = [];
+
     //
 }

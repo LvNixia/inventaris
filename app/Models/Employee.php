@@ -7,6 +7,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Employee extends Model
 {
+    protected $guarded = [];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'can_sign_as_witness' => 'boolean',
+    ];
+
     protected static function booted(): void
     {
         static::addGlobalScope(new \App\Models\Scopes\BranchScope);

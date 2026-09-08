@@ -6,6 +6,22 @@ use Illuminate\Database\Eloquent\Model;
 
 class Asset extends Model
 {
+    protected $guarded = [];
+
+    protected $casts = [
+        'purchase_date' => 'date',
+        'warranty_until' => 'date',
+        // Kolom JSON: dipakai KeyValue pada form aset dan perlu berupa array.
+        'specifications' => 'array',
+        'accessories' => 'array',
+        'unit_price' => 'decimal:2',
+        'quantity' => 'integer',
+        'qty_out' => 'integer',
+        'qty_in' => 'integer',
+        'qty_writeoff' => 'integer',
+        'qty_available' => 'integer',
+    ];
+
     public function handoverItems() { return $this->hasMany(HandoverItem::class); }
 
     public function branch() { return $this->belongsTo(Branch::class); }

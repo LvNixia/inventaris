@@ -6,5 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class DisposalReason extends Model
 {
+    protected $guarded = [];
+
     //
 }

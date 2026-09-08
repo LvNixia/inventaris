@@ -131,6 +131,20 @@ class AssetsTable
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
                     ->action(function ($livewire) {
+                        try {
+                            // Diperiksa sebelum unduhan dimulai; XLSX butuh ekstensi zip.
+                            \App\Services\Reports\ReportExporter::ensureXlsxIsSupported();
+                        } catch (\RuntimeException $e) {
+                            \Filament\Notifications\Notification::make()
+                                ->warning()
+                                ->title('Ekspor XLSX belum bisa dipakai')
+                                ->body($e->getMessage())
+                                ->persistent()
+                                ->send();
+
+                            return null;
+                        }
+
                         return response()->streamDownload(function () use ($livewire) {
                             $query = $livewire->getFilteredTableQuery();
                             app(\App\Services\AssetExportService::class)->export($query);

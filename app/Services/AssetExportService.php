@@ -12,9 +12,11 @@ class AssetExportService
      */
     public function export($query)
     {
-        $filename = 'export_assets_' . date('Ymd_His') . '.xlsx';
         $writer = new Writer();
-        $writer->openToBrowser($filename);
+        // Menulis ke php://output, bukan openToBrowser(): header unduhan sudah
+        // dikirim oleh response()->streamDownload() di pemanggilnya. Bila writer
+        // ikut mengirim header, PHP melempar "headers already sent".
+        $writer->openToFile('php://output');
 
         // Header
         $headerRow = Row::fromValues([

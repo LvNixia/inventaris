@@ -79,6 +79,11 @@ class AssetTransactionForm
                             ->label('Dokumen Serah Terima')
                             ->placeholder('Pilih Surat')
                             ->relationship('handoverDocument', 'document_number')
+                            // Surat berstatus draf belum punya nomor; tanpa label
+                            // pengganti, Filament menolak pilihan bernilai null.
+                            ->getOptionLabelFromRecordUsing(fn ($record): string => filled($record->document_number)
+                                ? $record->document_number
+                                : 'DRAF #' . $record->id . ' (' . $record->document_date?->translatedFormat('d M Y') . ')')
                             ->searchable()
                             ->preload(),
                         Select::make('from_branch_id')

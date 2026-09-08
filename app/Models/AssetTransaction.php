@@ -7,6 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AssetTransaction extends Model
 {
+    protected $guarded = [];
+
+    protected $casts = [
+        'transaction_date' => 'date',
+        'quantity' => 'integer',
+        'legacy' => 'boolean',
+    ];
+
     public function asset(): BelongsTo
     {
         return $this->belongsTo(Asset::class);
