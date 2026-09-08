@@ -1,4 +1,48 @@
 <x-filament-panels::page>
+    {{--
+        Memakai CSS sendiri, bukan kelas utilitas Tailwind: aplikasi tidak
+        mengompilasi Tailwind dan berkas CSS Filament hanya memuat kelas
+        komponen .fi-*, sehingga kelas utilitas tidak berpengaruh.
+        Warna mengambil variabel tema Filament agar ikut mode gelap.
+    --}}
+    @push('styles')
+        <style>
+            .cek-baris { display: flex; align-items: flex-start; gap: 0.75rem; }
+
+            .cek-ikon { flex: none; width: 1.75rem; height: 1.75rem; }
+            .cek-ikon-sukses { color: var(--success-600, #1f6b4a); }
+            .cek-ikon-peringatan { color: var(--warning-600, #8a5a1e); }
+            .cek-ikon-info { width: 1.25rem; height: 1.25rem; color: var(--gray-400); }
+
+            .cek-judul { font-size: 0.9375rem; font-weight: 600; color: var(--gray-950); margin: 0 0 0.25rem; }
+            .cek-teks { font-size: 0.875rem; color: var(--gray-500); margin: 0; }
+
+            .cek-tabel { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+            .cek-tabel th {
+                text-align: start;
+                font-weight: 500;
+                color: var(--gray-500);
+                padding: 0.375rem 1rem 0.375rem 0;
+                border-bottom: 1px solid var(--gray-200);
+            }
+            .cek-tabel td {
+                padding: 0.375rem 1rem 0.375rem 0;
+                vertical-align: top;
+                border-bottom: 1px solid var(--gray-200);
+                color: var(--gray-600);
+            }
+            .cek-tabel td.cek-ref { font-weight: 500; color: var(--gray-950); width: 14rem; }
+            .cek-gulir { overflow-x: auto; }
+
+            :is(.dark, .dark *) .cek-judul,
+            :is(.dark, .dark *) .cek-tabel td.cek-ref { color: #fff; }
+            :is(.dark, .dark *) .cek-teks { color: var(--gray-400); }
+            :is(.dark, .dark *) .cek-tabel td { color: var(--gray-300); }
+            :is(.dark, .dark *) .cek-tabel th,
+            :is(.dark, .dark *) .cek-tabel td { border-color: rgba(255, 255, 255, 0.1); }
+        </style>
+    @endpush
+
     @if (! $hasRun)
         <x-filament::section>
             <x-slot name="heading">Belum ada pemeriksaan dijalankan</x-slot>
@@ -6,44 +50,30 @@
                 Pemeriksaan menelusuri seluruh data aset dan transaksi, sehingga bisa memakan waktu beberapa saat.
             </x-slot>
 
-            <div class="flex items-center gap-x-3 text-sm text-gray-500 dark:text-gray-400">
-                <x-filament::icon icon="heroicon-o-information-circle" class="h-5 w-5 shrink-0" />
-                <span>Klik <strong>Jalankan Pemeriksaan</strong> di kanan atas untuk memulai.</span>
+            <div class="cek-baris">
+                <x-filament::icon icon="heroicon-o-information-circle" class="cek-ikon-info" />
+                <p class="cek-teks">Klik <strong>Jalankan Pemeriksaan</strong> di kanan atas untuk memulai.</p>
             </div>
         </x-filament::section>
     @elseif (count($issues) === 0)
         <x-filament::section>
-            <div class="flex items-start gap-x-4">
-                <x-filament::icon
-                    icon="heroicon-o-check-circle"
-                    class="h-8 w-8 shrink-0 text-success-600 dark:text-success-400"
-                />
+            <div class="cek-baris">
+                <x-filament::icon icon="heroicon-o-check-circle" class="cek-ikon cek-ikon-sukses" />
 
-                <div class="space-y-1">
-                    <h3 class="text-base font-semibold text-gray-950 dark:text-white">
-                        Semua data valid
-                    </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Tidak ditemukan masalah pada integritas stok maupun riwayat transaksi.
-                    </p>
+                <div>
+                    <h3 class="cek-judul">Semua data valid</h3>
+                    <p class="cek-teks">Tidak ditemukan masalah pada integritas stok maupun riwayat transaksi.</p>
                 </div>
             </div>
         </x-filament::section>
     @else
         <x-filament::section>
-            <div class="flex items-start gap-x-4">
-                <x-filament::icon
-                    icon="heroicon-o-exclamation-triangle"
-                    class="h-8 w-8 shrink-0 text-warning-600 dark:text-warning-400"
-                />
+            <div class="cek-baris">
+                <x-filament::icon icon="heroicon-o-exclamation-triangle" class="cek-ikon cek-ikon-peringatan" />
 
-                <div class="space-y-1">
-                    <h3 class="text-base font-semibold text-gray-950 dark:text-white">
-                        Ditemukan {{ count($issues) }} masalah data
-                    </h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Perbaiki data berikut agar laporan stok dan nilai aset tetap akurat.
-                    </p>
+                <div>
+                    <h3 class="cek-judul">Ditemukan {{ count($issues) }} masalah data</h3>
+                    <p class="cek-teks">Perbaiki data berikut agar laporan stok dan nilai aset tetap akurat.</p>
                 </div>
             </div>
         </x-filament::section>
@@ -51,32 +81,22 @@
         @foreach ($this->groupedIssues as $type => $typeIssues)
             <x-filament::section :heading="$type" collapsible>
                 <x-slot name="headerEnd">
-                    <x-filament::badge color="warning">
-                        {{ count($typeIssues) }} masalah
-                    </x-filament::badge>
+                    <x-filament::badge color="warning">{{ count($typeIssues) }} masalah</x-filament::badge>
                 </x-slot>
 
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
+                <div class="cek-gulir">
+                    <table class="cek-tabel">
                         <thead>
-                            <tr class="border-b border-gray-200 text-start dark:border-white/10">
-                                <th class="w-56 py-2 pe-4 text-start font-medium text-gray-500 dark:text-gray-400">
-                                    Referensi
-                                </th>
-                                <th class="py-2 text-start font-medium text-gray-500 dark:text-gray-400">
-                                    Masalah
-                                </th>
+                            <tr>
+                                <th>Referensi</th>
+                                <th>Masalah</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200 dark:divide-white/10">
+                        <tbody>
                             @foreach ($typeIssues as $issue)
                                 <tr>
-                                    <td class="py-2 pe-4 align-top font-medium text-gray-950 dark:text-white">
-                                        {{ $issue['reference'] ?? '—' }}
-                                    </td>
-                                    <td class="py-2 align-top text-gray-600 dark:text-gray-300">
-                                        {{ $issue['issue'] }}
-                                    </td>
+                                    <td class="cek-ref">{{ $issue['reference'] ?? '—' }}</td>
+                                    <td>{{ $issue['issue'] }}</td>
                                 </tr>
                             @endforeach
                         </tbody>

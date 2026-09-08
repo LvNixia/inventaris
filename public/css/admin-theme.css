@@ -1,36 +1,42 @@
 /*
- * Skala tampilan panel admin.
+ * Skala dan kerapatan tampilan panel admin.
  *
  * Dimuat sesudah stylesheet Filament (render hook STYLES_AFTER), jadi aturan
- * di sini menimpa bawaan tanpa perlu !important.
+ * di sini menimpa bawaan tanpa perlu !important. Selector ditulis meniru
+ * struktur asli Filament agar bobotnya setara.
  *
- * Dua tuas utama:
- *   --app-density  : pengali padding dan jarak antar elemen (0.75 = 25% lebih rapat)
- *   --app-max-width: lebar maksimum kolom konten
- * Ubah salah satunya, seluruh halaman ikut menyesuaikan.
+ * Empat tuas utama ada di blok :root di bawah. Mengubah salah satunya
+ * berlaku ke seluruh halaman sekaligus.
  */
 html.fi {
     /*
      * Semua ukuran Filament memakai rem, jadi angka ini menentukan skala
-     * font sekaligus tinggi input, tombol, dan ikon secara proporsional.
-     * Breakpoint responsif Tailwind memakai rem terhadap font bawaan browser,
+     * font sekaligus tinggi input dan ikon secara proporsional.
+     * Breakpoint responsif memakai rem terhadap font bawaan browser,
      * bukan nilai ini, sehingga titik pindah layout tidak bergeser.
      */
     font-size: 14px;
 
+    /* Pengali padding dan gap: 0.75 = 25% lebih rapat dari bawaan Filament. */
     --app-density: 0.75;
-    --app-max-width: 1200px;
+
+    /* Jarak seragam antar kartu di semua halaman. */
+    --app-section-gap: 1.25rem;
+
+    /* Tinggi tombol seragam, apa pun ukuran bawaannya. */
+    --app-btn-height: 2rem;
+
+    --app-max-width: 1100px;
 }
 
 .fi-body {
     line-height: 1.4;
 }
 
-/*
- * Judul: bawaan Filament naik sampai text-3xl di layar lebar dan terasa
- * jauh lebih besar dari elemen lain. Diturunkan agar hierarki
- * judul halaman -> judul kartu -> teks isi tetap terbaca tapi tidak dominan.
- */
+/* ---------------------------------------------------------------------------
+ * Judul
+ * ------------------------------------------------------------------------ */
+
 .fi-header-heading {
     font-size: 1.5rem;
     line-height: 1.25;
@@ -51,33 +57,55 @@ html.fi {
  * Lebar kontainer
  *
  * Hanya kolom konten yang dibatasi; topbar dan sidebar tetap selebar layar.
- * Dipakai satuan px, bukan rem, supaya batasnya tidak ikut mengecil saat
- * skala font diubah.
- * ------------------------------------------------------------------------ */
-/*
  * Filament menempelkan kelas lebar (mis. fi-width-7xl) pada elemen yang sama,
- * jadi selector di sini disamakan bobotnya dengan memakai [class]
- * supaya berlaku untuk lebar bawaan apa pun tanpa !important.
- */
+ * jadi dipakai [class] agar bobot selectornya setara.
+ * Satuan px supaya batas ini tidak ikut mengecil saat skala font diubah.
+ * ------------------------------------------------------------------------ */
+
 .fi-main[class] {
     max-width: var(--app-max-width);
+    padding-inline: calc(1rem * var(--app-density));
+}
+
+@media (min-width: 48rem) {
+    .fi-main[class] {
+        padding-inline: calc(1.5rem * var(--app-density));
+    }
+}
+
+@media (min-width: 64rem) {
+    .fi-main[class] {
+        padding-inline: calc(2rem * var(--app-density));
+    }
 }
 
 /* ---------------------------------------------------------------------------
- * Kerapatan: padding dan gap dikalikan --app-density.
+ * Jarak antar section
  *
- * Nilai rem di tiap calc() adalah angka bawaan Filament, jadi perbandingan
- * antar komponen tetap sama persis -- yang berubah cuma kerapatannya.
- * Tinggi tombol, input, dan ukuran ikon sengaja tidak diubah agar area klik
- * tetap nyaman.
+ * Disamakan untuk tiga konteks yang sebelumnya berbeda-beda: blok halaman,
+ * isi formulir, dan kartu pada halaman kustom.
  * ------------------------------------------------------------------------ */
 
-/*
- * Kartu (Section). Selector di bawah sengaja meniru persis struktur bawaan
- * Filament -- termasuk bagian :not() -- supaya bobotnya sama dan menang
- * karena dimuat belakangan, bukan karena !important.
- * Bawaan: header px-6 py-4, isi p-6, footer px-6 py-4.
- */
+.fi-page-content {
+    row-gap: var(--app-section-gap);
+}
+
+.fi-sc.fi-sc-has-gap {
+    gap: var(--app-section-gap);
+}
+
+.fi-page-header-main-ctn {
+    row-gap: var(--app-section-gap);
+    padding-block: calc(2rem * var(--app-density));
+}
+
+/* ---------------------------------------------------------------------------
+ * Kartu (Section)
+ *
+ * Nilai rem di dalam calc() adalah angka bawaan Filament, sehingga
+ * perbandingan antar komponen tetap sama; yang berubah kerapatannya saja.
+ * ------------------------------------------------------------------------ */
+
 .fi-section:not(.fi-section-not-contained):not(.fi-aside) > .fi-section-header {
     padding: calc(1rem * var(--app-density)) calc(1.5rem * var(--app-density));
 }
@@ -102,39 +130,46 @@ html.fi {
     padding: calc(1rem * var(--app-density)) calc(1.5rem * var(--app-density));
 }
 
-/* Jarak antar field di dalam skema form (gap-6) */
-.fi-sc.fi-sc-has-gap {
-    gap: calc(1.5rem * var(--app-density));
+/* ---------------------------------------------------------------------------
+ * Tabel
+ * ------------------------------------------------------------------------ */
+
+.fi-ta-header-cell {
+    padding: calc(0.875rem * var(--app-density)) calc(0.75rem * var(--app-density));
 }
 
-/* Jarak antar blok di halaman (gap-y-8) dan padding vertikal header halaman */
-.fi-page-content {
-    row-gap: calc(2rem * var(--app-density));
+.fi-ta-text:not(.fi-inline) {
+    padding: calc(1rem * var(--app-density)) calc(0.75rem * var(--app-density));
 }
 
-.fi-page-header-main-ctn {
-    row-gap: calc(2rem * var(--app-density));
-    padding-block: calc(2rem * var(--app-density));
+.fi-ta-container .fi-ta-header-toolbar {
+    padding: calc(0.75rem * var(--app-density)) calc(1rem * var(--app-density));
 }
 
-/* Padding horizontal kolom konten (px-4 / md:px-6 / lg:px-8) */
-.fi-main {
-    padding-inline: calc(1rem * var(--app-density));
-}
-
-@media (min-width: 48rem) {
-    .fi-main {
+@media (min-width: 40rem) {
+    .fi-ta-container .fi-ta-header-toolbar {
         padding-inline: calc(1.5rem * var(--app-density));
     }
 }
 
-@media (min-width: 64rem) {
-    .fi-main {
-        padding-inline: calc(2rem * var(--app-density));
-    }
+/* ---------------------------------------------------------------------------
+ * Tombol
+ *
+ * Filament mengatur tinggi tombol lewat padding, sehingga ukuran xs sampai xl
+ * menghasilkan tinggi berbeda-beda dalam satu halaman. Tinggi minimum di sini
+ * menyeragamkannya tanpa mengubah lebar maupun ukuran teksnya.
+ * Tombol ikon tidak disentuh karena bentuknya memang persegi.
+ * ------------------------------------------------------------------------ */
+
+.fi-btn {
+    min-height: var(--app-btn-height);
+    padding-block: calc(0.5rem * var(--app-density));
 }
 
-/* Sidebar: px-6 py-8 dengan jarak antar grup gap-y-7 */
+/* ---------------------------------------------------------------------------
+ * Sidebar
+ * ------------------------------------------------------------------------ */
+
 .fi-sidebar-nav {
     padding: calc(2rem * var(--app-density)) calc(1.5rem * var(--app-density));
     row-gap: calc(1.75rem * var(--app-density));

@@ -48,6 +48,7 @@ class AdminPanelProvider extends PanelProvider
                 'Pengadaan',
                 'Referensi',
                 'Pengaturan',
+                'Bantuan',
             ])
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             // Dimuat lewat STYLES_AFTER supaya berada sesudah stylesheet Filament,
