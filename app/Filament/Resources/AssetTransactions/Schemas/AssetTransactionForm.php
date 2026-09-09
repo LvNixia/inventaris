@@ -44,10 +44,6 @@ class AssetTransactionForm
                             ->native(false)
                             ->displayFormat('d M Y')
                             ->required(),
-                        TextInput::make('quantity')
-                            ->label('Jumlah')
-                            ->numeric()
-                            ->minValue(1),
                     ]),
 
                 Section::make('Pihak Terkait')

@@ -23,41 +23,89 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('assets', function (Blueprint $table) {
+        /*
+         * Katalog barang. Satu baris per jenis barang, dipakai berulang oleh
+         * setiap pembelian dan setiap unit. Memisahkan ini membuat pertanyaan
+         * "berapa total keyboard MK270 yang kita punya" bisa dijawab tanpa
+         * mencocokkan teks merek dan model.
+         */
+        Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->string('asset_code', 20)->unique();
             $table->foreignId('category_id')->constrained('categories');
             $table->foreignId('brand_id')->constrained('brands');
             $table->string('model')->nullable();
-            $table->integer('quantity')->default(1);
+            $table->json('specifications')->nullable();
+            $table->json('accessories')->nullable();
+            $table->text('notes')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+
+            $table->unique(['category_id', 'brand_id', 'model']);
+        });
+
+        /*
+         * Satu baris per baris faktur pembelian. Tanggal, harga, vendor, dan
+         * garansi berlaku untuk seluruh unit dalam batch yang sama, sehingga
+         * pembelian ulang produk yang sama cukup menambah batch, bukan
+         * menciptakan barang baru yang tampak seperti duplikat.
+         */
+        Schema::create('purchase_batches', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('branch_id')->constrained('branches');
+            $table->foreignId('vendor_id')->nullable()->constrained('vendors');
+            $table->string('invoice_number')->nullable();
+            $table->date('purchase_date')->nullable();
+            $table->decimal('unit_price', 15, 2)->nullable();
+            $table->integer('warranty_months')->nullable();
+            $table->date('warranty_until')->nullable();
+            $table->text('notes')->nullable();
+            $table->foreignId('import_batch_id')->nullable()->constrained('import_batches');
+            $table->foreignId('created_by')->nullable()->constrained('users');
+            $table->timestamps();
+
+            $table->index(['product_id', 'purchase_date']);
+            $table->index('invoice_number');
+        });
+
+        /*
+         * Satu baris per unit fisik. Nama tabelnya tetap "assets" karena
+         * transaksi, serah terima, servis, dan lampiran sudah menunjuk ke sini.
+         *
+         * Yang berubah: baris ini tidak lagi mewakili lot berisi banyak unit.
+         * Karena itu kolom quantity dan seluruh kolom qty_* hilang; jumlah stok
+         * dihitung dengan mencacah baris per status, bukan lewat aritmetika yang
+         * harus terus disinkronkan. Status, kondisi, dan pemegang kini melekat
+         * pada unit yang benar, sehingga satu unit masuk servis tidak lagi ikut
+         * mengunci unit lain yang sehat.
+         */
+        Schema::create('assets', function (Blueprint $table) {
+            $table->id();
+            $table->string('asset_code', 20)->unique();
+            $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('purchase_batch_id')->nullable()->constrained('purchase_batches');
+            $table->foreignId('branch_id')->constrained('branches');
             $table->string('serial_number')->nullable()->unique();
             $table->string('imei_1')->nullable();
             $table->string('imei_2')->nullable();
+            // Diisi hanya bila unit ini menyimpang dari spesifikasi produknya,
+            // misalnya setelah RAM-nya ditambah lewat upgrade.
             $table->json('specifications')->nullable();
-            $table->json('accessories')->nullable();
             $table->foreignId('condition_id')->constrained('conditions');
-            $table->date('purchase_date')->nullable();
-            $table->foreignId('vendor_id')->nullable()->constrained('vendors');
-            $table->string('invoice_number')->nullable();
-            $table->decimal('unit_price', 15, 2)->nullable();
-            $table->date('warranty_until')->nullable();
-            $table->foreignId('branch_id')->constrained('branches');
-            $table->foreignId('split_from_asset_id')->nullable()->constrained('assets');
-            $table->text('notes')->nullable();
             $table->foreignId('current_holder_id')->nullable()->constrained('employees');
             $table->foreignId('current_user_id')->nullable()->constrained('employees');
             $table->foreignId('current_status_id')->nullable()->constrained('asset_statuses');
-            $table->integer('qty_out')->default(0);
-            $table->integer('qty_in')->default(0);
-            $table->integer('qty_writeoff')->default(0);
-            $table->integer('qty_available')->default(0);
+            $table->date('retired_at')->nullable();
+            $table->text('notes')->nullable();
             $table->foreignId('import_batch_id')->nullable()->constrained('import_batches');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->foreignId('updated_by')->nullable()->constrained('users');
             $table->timestamps();
 
-            $table->index(['branch_id', 'category_id']);
-            $table->index(['current_holder_id']);
+            $table->index(['branch_id', 'product_id']);
+            $table->index(['current_status_id', 'branch_id']);
+            $table->index('current_holder_id');
+            $table->index('purchase_batch_id');
         });
 
         Schema::create('handover_documents', function (Blueprint $table) {
@@ -95,8 +143,9 @@ return new class extends Migration
         Schema::create('handover_items', function (Blueprint $table) {
             $table->id();
             $table->foreignId('handover_document_id')->constrained('handover_documents');
+            // Satu baris per unit; tidak ada lagi kolom jumlah karena satu aset
+            // kini selalu berarti satu unit fisik.
             $table->foreignId('asset_id')->constrained('assets');
-            $table->integer('quantity');
             $table->foreignId('user_employee_id')->nullable()->constrained('employees');
             $table->string('item_name')->nullable();
             $table->string('serial_number')->nullable();
@@ -140,7 +189,7 @@ return new class extends Migration
             $table->foreignId('asset_id')->constrained('assets');
             $table->enum('type', ['handover', 'return', 'status_change', 'disposal', 'branch_transfer', 'cancellation', 'correction', 'legacy']);
             $table->date('transaction_date');
-            $table->integer('quantity')->nullable();
+            // Tanpa kolom jumlah: satu transaksi selalu menyangkut satu unit.
             $table->foreignId('from_employee_id')->nullable()->constrained('employees');
             $table->foreignId('to_employee_id')->nullable()->constrained('employees');
             $table->foreignId('user_employee_id')->nullable()->constrained('employees');
@@ -198,6 +247,8 @@ return new class extends Migration
         Schema::dropIfExists('handover_items');
         Schema::dropIfExists('handover_documents');
         Schema::dropIfExists('assets');
+        Schema::dropIfExists('purchase_batches');
+        Schema::dropIfExists('products');
         Schema::dropIfExists('import_batches');
     }
 };

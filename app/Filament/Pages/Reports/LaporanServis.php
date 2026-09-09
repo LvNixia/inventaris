@@ -169,7 +169,7 @@ class LaporanServis extends BaseReportPage
 
     protected function getReportEagerLoads(): array
     {
-        return ['asset', 'serviceKind', 'vendor', 'serviceResult'];
+        return ['asset.product', 'serviceKind', 'vendor', 'serviceResult'];
     }
 
     public function getReportMeta(): array

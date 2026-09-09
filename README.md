@@ -95,7 +95,7 @@ php artisan db:seed --class=DemoDataSeeder
 
 Seeder ini menolak berjalan bila `APP_ENV=production` atau bila tabel aset sudah berisi data.
 
-Isinya 21 aset, 12 karyawan, 8 surat serah terima, 28 transaksi, 4 catatan servis, dan 4 lampiran — dibuat lewat service aplikasi yang sama dengan yang dipakai antarmuka, sehingga perhitungan stok dan riwayat transaksinya konsisten.
+Isinya 20 barang di katalog, 21 pembelian, 52 unit aset, 12 karyawan, 8 surat serah terima, 29 transaksi, 4 catatan servis, dan 4 lampiran — dibuat lewat service aplikasi yang sama dengan yang dipakai antarmuka, sehingga riwayat transaksinya konsisten.
 
 Skenario yang sengaja disiapkan agar laporan tidak kosong:
 
@@ -185,12 +185,28 @@ Bersihkan cache Filament setiap kali kamu mengubah `AppServiceProvider` atau ber
 |---|---|
 | `app/Filament/Resources/` | Modul CRUD: aset, servis, transaksi, serah terima, karyawan, dan data master |
 | `app/Filament/Pages/Reports/` | Halaman laporan yang bisa dicetak dan diekspor |
-| `app/Services/` | Aturan bisnis: serah terima, servis, mutasi cabang, perhitungan stok |
-| `app/Filament/Support/AssetSelect.php` | Dropdown pemilih aset yang dipakai bersama beberapa form |
+| `app/Services/` | Aturan bisnis: penerimaan pembelian, serah terima, servis, mutasi cabang |
+| `app/Filament/Support/AssetSelect.php` | Dropdown pemilih unit aset yang dipakai bersama beberapa form |
 | `database/seeders/MasterSeeder.php` | Data acuan, wajib dijalankan |
 | `database/seeders/DemoDataSeeder.php` | Data simulasi, opsional |
 
-Seluruh pergerakan aset ditulis lewat kelas di `app/Services/`, bukan lewat penyimpanan model langsung, supaya kolom stok (`qty_out`, `qty_in`, `qty_writeoff`, `qty_available`) dan riwayat transaksi selalu sejalan.
+Seluruh pergerakan aset ditulis lewat kelas di `app/Services/`, bukan lewat penyimpanan model langsung, supaya status unit dan riwayat transaksi selalu sejalan.
+
+## Model Data
+
+Pencatatan dipisah menjadi tiga lapis:
+
+| Tabel | Isi | Kardinalitas |
+|---|---|---|
+| `products` | Katalog barang: kategori, merek, tipe, spesifikasi bawaan | 1 baris per jenis barang |
+| `purchase_batches` | Satu baris faktur: vendor, tanggal, harga satuan, garansi | 1 baris per pembelian |
+| `assets` | Unit fisik: kode aset, nomor seri, kondisi, status, pemegang | 1 baris per unit |
+
+Satu baris `assets` berarti tepat satu unit fisik. Karena itu tidak ada kolom jumlah maupun `qty_*`: stok dihitung dengan mencacah baris per keadaan (`Asset::available()`, `held()`, `retired()`), bukan lewat aritmetika yang harus terus disinkronkan.
+
+Konsekuensi yang paling terasa: satu unit masuk servis tidak lagi memengaruhi unit lain yang sejenis, dan nomor seri selalu bisa disimpan karena tidak lagi berbagi baris.
+
+Nomor seri boleh dikosongkan saat penerimaan, tetapi unit berkategori `requires_serial` ditolak saat hendak diserahkan, dikirim antar cabang, atau ditinggal di tempat servis sampai serialnya terisi.
 
 ## Masalah Umum
 

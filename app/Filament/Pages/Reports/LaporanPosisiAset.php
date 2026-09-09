@@ -45,15 +45,19 @@ class LaporanPosisiAset extends BaseReportPage
                     ->fontFamily('mono')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('category.name')
+                TextColumn::make('product.category.name')
                     ->label('Kategori')
                     ->sortable(),
-                TextColumn::make('brand.name')
+                TextColumn::make('product.brand.name')
                     ->label('Merek')
                     ->sortable(),
-                TextColumn::make('model')
+                TextColumn::make('product.model')
                     ->label('Tipe / Model')
                     ->searchable(),
+                TextColumn::make('serial_number')
+                    ->label('S/N')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('branch.name')
                     ->label('Cabang')
                     ->sortable(),
@@ -61,29 +65,20 @@ class LaporanPosisiAset extends BaseReportPage
                     ->label('Status'),
                 TextColumn::make('condition.name')
                     ->label('Kondisi'),
-                TextColumn::make('quantity')
-                    ->label('Total Unit')
-                    ->numeric()
-                    ->alignEnd()
-                    ->sortable()
-                    ->summarize(\Filament\Tables\Columns\Summarizers\Sum::make()->label('Total')),
-                TextColumn::make('qty_available')
-                    ->label('Tersedia')
-                    ->numeric()
-                    ->alignEnd()
-                    ->sortable()
-                    ->summarize(\Filament\Tables\Columns\Summarizers\Sum::make()->label('Total')),
-                TextColumn::make('qty_dipegang')
-                    ->label('Dipegang')
-                    ->state(fn (Asset $record): int => (int) $record->qty_out - (int) $record->qty_in)
-                    ->numeric()
-                    ->alignEnd(),
-                TextColumn::make('qty_writeoff')
-                    ->label('Dilepas')
-                    ->numeric()
-                    ->alignEnd()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('unit_price')
+                TextColumn::make('keadaan')
+                    ->label('Keadaan')
+                    ->badge()
+                    ->state(fn (Asset $record): string => $this->keadaan($record))
+                    ->color(fn (string $state): string => match ($state) {
+                        'Tersedia' => 'success',
+                        'Dipegang' => 'info',
+                        'Dilepas' => 'danger',
+                        default => 'gray',
+                    }),
+                TextColumn::make('currentHolder.name')
+                    ->label('Pemegang')
+                    ->toggleable(),
+                TextColumn::make('purchaseBatch.unit_price')
                     ->label('Harga Satuan')
                     ->money('IDR', locale: 'id')
                     ->alignEnd()
@@ -94,7 +89,7 @@ class LaporanPosisiAset extends BaseReportPage
                     ->state(fn (Asset $record): float => $this->nilaiAktif($record))
                     ->money('IDR', locale: 'id')
                     ->alignEnd(),
-                TextColumn::make('purchase_date')
+                TextColumn::make('purchaseBatch.purchase_date')
                     ->label('Tgl Beli')
                     ->date('d M Y')
                     ->sortable()
@@ -103,7 +98,7 @@ class LaporanPosisiAset extends BaseReportPage
                     ->label('Umur')
                     ->state(fn (Asset $record): string => $this->umur($record))
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('warranty_until')
+                TextColumn::make('purchaseBatch.warranty_until')
                     ->label('Garansi Sampai')
                     ->date('d M Y')
                     ->badge()
@@ -120,9 +115,9 @@ class LaporanPosisiAset extends BaseReportPage
                     ->label('Cabang')
                     ->relationship('branch', 'name')
                     ->visible(fn (): bool => auth()->user()?->role === \App\Enums\Role::AdminPusat),
-                SelectFilter::make('category_id')
+                SelectFilter::make('category')
                     ->label('Kategori')
-                    ->relationship('category', 'name'),
+                    ->relationship('product.category', 'name'),
                 SelectFilter::make('condition_id')
                     ->label('Kondisi')
                     ->relationship('condition', 'name'),
@@ -133,20 +128,28 @@ class LaporanPosisiAset extends BaseReportPage
                     ->label('Hanya aset menganggur')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query
-                        ->where('qty_available', '>', 0)
-                        ->where('qty_out', 0)),
+                        ->available()
+                        ->whereDoesntHave('assetTransactions', fn (Builder $tx) => $tx->where('stock_direction', 'out'))),
+                Filter::make('tanpa_serial')
+                    ->label('Nomor seri belum diisi')
+                    ->toggle()
+                    ->query(fn (Builder $query): Builder => $query
+                        ->whereNull('serial_number')
+                        ->whereHas('product.category', fn (Builder $c) => $c->where('requires_serial', true))),
                 Filter::make('garansi_segera_habis')
                     ->label('Garansi habis dalam 90 hari')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query
-                        ->whereNotNull('warranty_until')
-                        ->whereBetween('warranty_until', [now(), now()->addDays(90)])),
+                        ->whereHas('purchaseBatch', fn (Builder $b) => $b
+                            ->whereNotNull('warranty_until')
+                            ->whereBetween('warranty_until', [now(), now()->addDays(90)]))),
                 Filter::make('garansi_lewat')
                     ->label('Garansi sudah lewat')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query
-                        ->whereNotNull('warranty_until')
-                        ->whereDate('warranty_until', '<', now())),
+                        ->whereHas('purchaseBatch', fn (Builder $b) => $b
+                            ->whereNotNull('warranty_until')
+                            ->whereDate('warranty_until', '<', now()))),
             ])
             ->defaultSort('asset_code');
     }
@@ -154,9 +157,8 @@ class LaporanPosisiAset extends BaseReportPage
     public function getReportHeadings(): array
     {
         return [
-            'Kode Aset', 'Kategori', 'Merek', 'Tipe / Model', 'Cabang', 'Status', 'Kondisi',
-            'Total Unit', 'Tersedia', 'Dipegang', 'Dilepas',
-            'Harga Satuan', 'Nilai Aktif', 'Tgl Beli', 'Umur', 'Garansi Sampai',
+            'Kode Aset', 'Kategori', 'Merek', 'Tipe / Model', 'S/N', 'Cabang', 'Status', 'Kondisi',
+            'Keadaan', 'Pemegang', 'Harga Satuan', 'Nilai Aktif', 'Tgl Beli', 'Umur', 'Garansi Sampai',
         ];
     }
 
@@ -164,16 +166,15 @@ class LaporanPosisiAset extends BaseReportPage
     {
         return [
             $record->asset_code,
-            $record->category?->name,
-            $record->brand?->name,
-            $record->model,
+            $record->product?->category?->name,
+            $record->product?->brand?->name,
+            $record->product?->model,
+            $record->serial_number,
             $record->branch?->name,
             $record->currentStatus?->name,
             $record->condition?->name,
-            (int) $record->quantity,
-            (int) $record->qty_available,
-            (int) $record->qty_out - (int) $record->qty_in,
-            (int) $record->qty_writeoff,
+            $this->keadaan($record),
+            $record->currentHolder?->name,
             (float) $record->unit_price,
             $this->nilaiAktif($record),
             $record->purchase_date?->translatedFormat('d M Y'),
@@ -184,7 +185,7 @@ class LaporanPosisiAset extends BaseReportPage
 
     protected function getReportEagerLoads(): array
     {
-        return ['category', 'brand', 'branch', 'condition', 'currentStatus'];
+        return ['product.category', 'product.brand', 'purchaseBatch', 'branch', 'condition', 'currentStatus', 'currentHolder'];
     }
 
     public function getReportMeta(): array
@@ -193,7 +194,7 @@ class LaporanPosisiAset extends BaseReportPage
 
         return [
             'Cabang' => $this->nameOf(Branch::class, $filters['value'] ?? null),
-            'Kategori' => $this->nameOf(Category::class, $this->getTableFilterState('category_id')['value'] ?? null),
+            'Kategori' => $this->nameOf(Category::class, $this->getTableFilterState('category')['value'] ?? null),
         ];
     }
 
@@ -202,7 +203,21 @@ class LaporanPosisiAset extends BaseReportPage
      */
     protected function nilaiAktif(Asset $asset): float
     {
-        return (float) $asset->unit_price * max(0, (int) $asset->quantity - (int) $asset->qty_writeoff);
+        // Unit yang sudah dilepas tidak lagi bernilai bagi perusahaan.
+        return $asset->retired_at ? 0.0 : (float) $asset->unit_price;
+    }
+
+    /**
+     * Keadaan unit dalam satu kata, menggantikan empat kolom kuantitas lama.
+     */
+    protected function keadaan(Asset $asset): string
+    {
+        return match (true) {
+            $asset->retired_at !== null => 'Dilepas',
+            $asset->current_holder_id !== null => 'Dipegang',
+            $asset->isAvailable() => 'Tersedia',
+            default => $asset->currentStatus?->name ?? 'Belum berstatus',
+        };
     }
 
     protected function umur(Asset $asset): string

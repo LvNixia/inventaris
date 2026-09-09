@@ -73,10 +73,10 @@ class LaporanMutasi extends BaseReportPage
                     ->label('Jenis')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => self::JENIS[$state] ?? $state),
-                TextColumn::make('quantity')
-                    ->label('Jumlah')
-                    ->numeric()
-                    ->alignEnd(),
+                TextColumn::make('asset.serial_number')
+                    ->label('Nomor Seri')
+                    ->searchable()
+                    ->toggleable(),
                 TextColumn::make('stock_direction')
                     ->label('Arah Stok')
                     ->badge()
@@ -150,7 +150,7 @@ class LaporanMutasi extends BaseReportPage
     public function getReportHeadings(): array
     {
         return [
-            'Tanggal', 'Kode Aset', 'Jenis', 'Jumlah', 'Arah Stok',
+            'Tanggal', 'Kode Aset', 'Jenis', 'Nomor Seri', 'Arah Stok',
             'Dari', 'Ke', 'Dari Cabang', 'Ke Cabang',
             'Alasan Pelepasan', 'Nilai Dilepas', 'No. Surat', 'Catatan',
         ];
@@ -162,7 +162,7 @@ class LaporanMutasi extends BaseReportPage
             $record->transaction_date?->translatedFormat('d M Y'),
             $record->asset?->asset_code,
             self::JENIS[$record->type] ?? $record->type,
-            $record->quantity,
+            $record->asset?->serial_number,
             self::ARAH[$record->stock_direction] ?? $record->stock_direction,
             $record->fromEmployee?->name,
             $record->toEmployee?->name,
@@ -177,7 +177,7 @@ class LaporanMutasi extends BaseReportPage
 
     protected function getReportEagerLoads(): array
     {
-        return ['asset', 'fromEmployee', 'toEmployee', 'fromBranch', 'toBranch', 'disposalReason', 'handoverDocument'];
+        return ['asset.product', 'asset.purchaseBatch', 'fromEmployee', 'toEmployee', 'fromBranch', 'toBranch', 'disposalReason', 'handoverDocument'];
     }
 
     public function getReportMeta(): array
@@ -201,6 +201,7 @@ class LaporanMutasi extends BaseReportPage
             return null;
         }
 
-        return (float) ($record->asset?->unit_price ?? 0) * (int) ($record->quantity ?? 0);
+        // Satu transaksi menyangkut satu unit, jadi nilainya sama dengan harga satuannya.
+        return (float) ($record->asset?->unit_price ?? 0);
     }
 }

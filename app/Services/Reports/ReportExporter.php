@@ -29,7 +29,7 @@ class ReportExporter
         static::ensureXlsxIsSupported();
 
         return response()->streamDownload(function () use ($title, $headings, $rows, $meta) {
-            $writer = new Writer();
+            $writer = new Writer;
             $writer->openToFile('php://output');
 
             $bold = (new Style)->setFontBold();
@@ -79,7 +79,7 @@ class ReportExporter
         // "Malformed UTF-8 characters". Hanya StreamedResponse dan
         // BinaryFileResponse yang dikenali Livewire sebagai unduhan berkas.
         return response()->streamDownload(
-            fn () => print($output),
+            fn () => print ($output),
             $this->filename($title, 'pdf'),
             ['Content-Type' => 'application/pdf'],
         );
@@ -101,14 +101,14 @@ class ReportExporter
 
         throw new \RuntimeException(
             'Ekspor XLSX butuh ekstensi PHP "zip" yang saat ini belum aktif. '
-            . 'Aktifkan lewat Laragon (menu PHP > Extensions > zip) atau hapus tanda titik koma '
-            . 'pada baris ";extension=zip" di php.ini, lalu jalankan ulang layanan web. '
-            . 'Sementara itu, laporan tetap bisa diunduh sebagai PDF.'
+            .'Aktifkan lewat Laragon (menu PHP > Extensions > zip) atau hapus tanda titik koma '
+            .'pada baris ";extension=zip" di php.ini, lalu jalankan ulang layanan web. '
+            .'Sementara itu, laporan tetap bisa diunduh sebagai PDF.'
         );
     }
 
     protected function filename(string $title, string $extension): string
     {
-        return str($title)->slug('_')->value() . '_' . now()->format('Ymd_His') . '.' . $extension;
+        return str($title)->slug('_')->value().'_'.now()->format('Ymd_His').'.'.$extension;
     }
 }

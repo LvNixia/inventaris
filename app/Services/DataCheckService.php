@@ -3,52 +3,132 @@
 namespace App\Services;
 
 use App\Models\Asset;
-use App\Models\AssetTransaction;
-use Illuminate\Support\Facades\DB;
+use App\Models\AssetService as AssetServiceModel;
 
+/**
+ * Menelusuri kejanggalan yang tidak bisa dicegah oleh validasi formulir.
+ *
+ * Pemeriksaan lama menghitung keseimbangan kolom qty_*. Kolom itu tidak ada
+ * lagi: satu baris berarti satu unit, jadi stok tidak mungkin timpang. Yang
+ * perlu diawasi sekarang adalah keadaan unit yang saling bertentangan dan data
+ * wajib yang belum terisi.
+ */
 class DataCheckService
 {
     /**
-     * Run all data integrity checks.
-     * Returns an array of issues.
+     * @return array<int, array{type: string, id: int, reference: string, issue: string}>
      */
     public function runChecks(): array
     {
-        $issues = [];
+        return array_merge(
+            $this->unitTanpaSerial(),
+            $this->unitDipegangTapiStatusTidakDipakai(),
+            $this->unitDilepasTapiMasihDipegang(),
+            $this->unitTanpaStatus(),
+            $this->servisBerjalanPadaUnitDilepas(),
+            $this->unitTanpaBatchPembelian(),
+        );
+    }
 
-        // 1. Negative available quantity
-        $negativeAvailable = Asset::where('qty_available', '<', 0)->get();
-        foreach ($negativeAvailable as $asset) {
-            $issues[] = [
+    /**
+     * Wajib bernomor seri tetapi belum diisi. Belum tentu salah — serial memang
+     * boleh menyusul — tetapi unit ini akan tertahan saat hendak diserahkan.
+     */
+    protected function unitTanpaSerial(): array
+    {
+        return Asset::query()
+            ->active()
+            ->with('product.category')
+            ->whereNull('serial_number')
+            ->whereHas('product.category', fn ($category) => $category->where('requires_serial', true))
+            ->get()
+            ->map(fn (Asset $asset): array => [
                 'type' => 'Aset',
                 'id' => $asset->id,
                 'reference' => $asset->asset_code,
-                'issue' => "Kuantitas tersedia negatif ({$asset->qty_available}).",
-            ];
-        }
+                'issue' => "Nomor seri belum diisi, padahal kategori {$asset->product?->category?->name} mewajibkannya.",
+            ])
+            ->all();
+    }
 
-        // 2. Qty in > Qty out
-        $invalidInOut = Asset::where(DB::raw('qty_in'), '>', DB::raw('qty_out'))->get();
-        foreach ($invalidInOut as $asset) {
-            $issues[] = [
+    protected function unitDipegangTapiStatusTidakDipakai(): array
+    {
+        return Asset::query()
+            ->held()
+            ->with(['currentStatus', 'currentHolder'])
+            ->whereHas('currentStatus', fn ($status) => $status->whereIn('code', ['spare', 'registered']))
+            ->get()
+            ->map(fn (Asset $asset): array => [
                 'type' => 'Aset',
                 'id' => $asset->id,
                 'reference' => $asset->asset_code,
-                'issue' => "Kuantitas masuk ({$asset->qty_in}) lebih besar dari kuantitas keluar ({$asset->qty_out}).",
-            ];
-        }
+                'issue' => "Tercatat dipegang {$asset->currentHolder?->name} tetapi statusnya {$asset->currentStatus?->name}.",
+            ])
+            ->all();
+    }
 
-        // 3. Qty available + qty held + qty writeoff != quantity
-        $mismatchedTotals = Asset::where(DB::raw('qty_available + (qty_out - qty_in) + qty_writeoff'), '!=', DB::raw('quantity'))->get();
-        foreach ($mismatchedTotals as $asset) {
-            $issues[] = [
+    protected function unitDilepasTapiMasihDipegang(): array
+    {
+        return Asset::query()
+            ->retired()
+            ->with('currentHolder')
+            ->whereNotNull('current_holder_id')
+            ->get()
+            ->map(fn (Asset $asset): array => [
                 'type' => 'Aset',
                 'id' => $asset->id,
                 'reference' => $asset->asset_code,
-                'issue' => "Total kuantitas tidak seimbang. Rumus: Tersedia + Dipegang + Dilepas != Total Awal.",
-            ];
-        }
+                'issue' => "Sudah dilepas tetapi masih tercatat dipegang {$asset->currentHolder?->name}.",
+            ])
+            ->all();
+    }
 
-        return $issues;
+    protected function unitTanpaStatus(): array
+    {
+        return Asset::query()
+            ->whereNull('current_status_id')
+            ->get()
+            ->map(fn (Asset $asset): array => [
+                'type' => 'Aset',
+                'id' => $asset->id,
+                'reference' => $asset->asset_code,
+                'issue' => 'Unit belum punya status; buka asetnya lalu tetapkan statusnya.',
+            ])
+            ->all();
+    }
+
+    protected function servisBerjalanPadaUnitDilepas(): array
+    {
+        return AssetServiceModel::query()
+            ->where('status', 'open')
+            ->whereHas('asset', fn ($asset) => $asset->withoutGlobalScopes()->whereNotNull('retired_at'))
+            ->with('asset')
+            ->get()
+            ->map(fn (AssetServiceModel $service): array => [
+                'type' => 'Servis',
+                'id' => $service->id,
+                'reference' => "#{$service->id} · {$service->asset?->asset_code}",
+                'issue' => 'Catatan servis masih terbuka padahal unitnya sudah dilepas.',
+            ])
+            ->all();
+    }
+
+    /**
+     * Tanpa batch, unit ini tidak punya harga dan tanggal beli, sehingga hilang
+     * dari perhitungan nilai aset.
+     */
+    protected function unitTanpaBatchPembelian(): array
+    {
+        return Asset::query()
+            ->active()
+            ->whereNull('purchase_batch_id')
+            ->get()
+            ->map(fn (Asset $asset): array => [
+                'type' => 'Aset',
+                'id' => $asset->id,
+                'reference' => $asset->asset_code,
+                'issue' => 'Belum tertaut ke batch pembelian, jadi tidak ikut terhitung pada nilai aset.',
+            ])
+            ->all();
     }
 }

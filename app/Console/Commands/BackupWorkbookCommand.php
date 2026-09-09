@@ -58,24 +58,23 @@ class BackupWorkbookCommand extends Command
         $sheetAsset = $writer->addNewSheetAndMakeItCurrent();
         $sheetAsset->setName('Aset');
         $writer->addRow(Row::fromValues([
-            'ID', 'Kode', 'Kategori', 'Merk', 'Model', 'SN', 'Kondisi', 'Cabang', 'Qty', 'Tersedia', 'Dipegang', 'Writeoff'
+            'ID', 'Kode', 'Kategori', 'Merk', 'Model', 'SN', 'Kondisi', 'Cabang', 'Status', 'Tgl Beli', 'Harga Satuan'
         ]));
 
-        Asset::with(['category', 'brand', 'condition', 'branch'])->chunk(500, function ($assets) use ($writer) {
+        Asset::with(['product.category', 'product.brand', 'purchaseBatch', 'condition', 'branch', 'currentStatus'])->chunk(500, function ($assets) use ($writer) {
             foreach ($assets as $asset) {
                 $writer->addRow(Row::fromValues([
                     $asset->id,
                     $asset->asset_code,
-                    $asset->category?->name,
-                    $asset->brand?->name,
-                    $asset->model,
+                    $asset->product?->category?->name,
+                    $asset->product?->brand?->name,
+                    $asset->product?->model,
                     $asset->serial_number,
                     $asset->condition?->name,
                     $asset->branch?->name,
-                    $asset->quantity,
-                    $asset->qty_available,
-                    ($asset->qty_out - $asset->qty_in),
-                    $asset->qty_writeoff
+                    $asset->currentStatus?->name,
+                    $asset->purchaseBatch?->purchase_date?->format('Y-m-d'),
+                    (float) $asset->purchaseBatch?->unit_price
                 ]));
             }
         });
@@ -84,7 +83,7 @@ class BackupWorkbookCommand extends Command
         $sheetHistory = $writer->addNewSheetAndMakeItCurrent();
         $sheetHistory->setName('Riwayat');
         $writer->addRow(Row::fromValues([
-            'ID', 'Tanggal', 'Aset', 'Tipe', 'Qty', 'Arah', 'Surat'
+            'ID', 'Tanggal', 'Aset', 'Tipe', 'Arah', 'Surat'
         ]));
 
         AssetTransaction::with(['asset', 'handoverDocument'])->chunk(500, function ($txs) use ($writer) {
@@ -94,7 +93,6 @@ class BackupWorkbookCommand extends Command
                     Carbon::parse($tx->transaction_date)->format('Y-m-d'),
                     $tx->asset?->asset_code,
                     $tx->type,
-                    $tx->quantity,
                     $tx->stock_direction,
                     $tx->handoverDocument?->document_number
                 ]));

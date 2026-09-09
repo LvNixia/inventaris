@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use OpenSpout\Writer\XLSX\Writer;
-use OpenSpout\Common\Entity\Row;
 use Carbon\Carbon;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
 
 class AssetTransactionExportService
 {
@@ -13,7 +13,7 @@ class AssetTransactionExportService
      */
     public function export($query)
     {
-        $writer = new Writer();
+        $writer = new Writer;
         // Menulis ke php://output, bukan openToBrowser(): header unduhan sudah
         // dikirim oleh response()->streamDownload() di pemanggilnya. Bila writer
         // ikut mengirim header, PHP melempar "headers already sent".
@@ -24,7 +24,6 @@ class AssetTransactionExportService
             'Tipe Transaksi',
             'Tanggal',
             'Kode Aset',
-            'Jumlah',
             'Dari Karyawan',
             'Ke Karyawan',
             'Pemakai (User)',
@@ -36,7 +35,7 @@ class AssetTransactionExportService
         $writer->addRow($headerRow);
 
         $query->with(['asset', 'fromEmployee', 'toEmployee', 'userEmployee', 'status', 'handoverDocument']);
-        
+
         $query->chunk(500, function ($transactions) use ($writer) {
             foreach ($transactions as $transaction) {
                 $row = Row::fromValues([
@@ -44,7 +43,6 @@ class AssetTransactionExportService
                     $transaction->type,
                     Carbon::parse($transaction->transaction_date)->format('Y-m-d'),
                     $transaction->asset?->asset_code,
-                    $transaction->quantity,
                     $transaction->fromEmployee?->name ?? '-',
                     $transaction->toEmployee?->name ?? '-',
                     $transaction->userEmployee?->name ?? '-',

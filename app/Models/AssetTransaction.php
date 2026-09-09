@@ -11,7 +11,6 @@ class AssetTransaction extends Model
 
     protected $casts = [
         'transaction_date' => 'date',
-        'quantity' => 'integer',
         'legacy' => 'boolean',
     ];
 

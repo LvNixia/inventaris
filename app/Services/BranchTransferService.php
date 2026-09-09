@@ -2,84 +2,77 @@
 
 namespace App\Services;
 
+use App\Enums\Role;
+use App\Enums\TransactionType;
 use App\Models\Asset;
 use App\Models\AssetStatus;
 use App\Models\AssetTransaction;
-use App\Models\Branch;
-use Illuminate\Support\Facades\DB;
-use App\Enums\TransactionType;
 use Exception;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * Perpindahan unit antar cabang.
+ *
+ * Sejak satu baris aset berarti satu unit, pengiriman tidak perlu lagi memecah
+ * baris: unit yang sama berpindah cabang dan kode asetnya tetap, sehingga
+ * riwayat servis, lampiran, dan serah terimanya ikut terbawa.
+ */
 class BranchTransferService
 {
     protected StockCalculator $stockCalculator;
-    protected AssetCodeGenerator $assetCodeGenerator;
 
-    public function __construct(StockCalculator $stockCalculator, AssetCodeGenerator $assetCodeGenerator)
+    public function __construct(StockCalculator $stockCalculator)
     {
         $this->stockCalculator = $stockCalculator;
-        $this->assetCodeGenerator = $assetCodeGenerator;
     }
 
     /**
-     * Send asset to another branch.
+     * Kirim unit ke cabang lain.
      */
-    public function send(Asset $asset, array $data)
+    public function send(Asset $asset, array $data): Asset
     {
         return DB::transaction(function () use ($asset, $data) {
-            $asset = Asset::where('id', $asset->id)->lockForUpdate()->first();
+            $asset = Asset::withoutGlobalScopes()
+                ->with(['product.category', 'currentHolder'])
+                ->where('id', $asset->id)
+                ->lockForUpdate()
+                ->first();
 
             $targetBranchId = $data['to_branch_id'];
-            $quantity = $data['quantity'] ?? 1;
 
             if ($targetBranchId == $asset->branch_id) {
-                throw new Exception("Cabang tujuan tidak boleh sama dengan cabang asal");
+                throw new Exception('Cabang tujuan tidak boleh sama dengan cabang asal.');
             }
 
-            // Validasi saldo pemegang = 0 (karena ini barang gudang yang dikirim)
-            $heldQuantity = $asset->qty_out - $asset->qty_in;
-            if ($heldQuantity > 0) {
-                throw new Exception("Barang masih dipegang seseorang. Tarik kembali terlebih dahulu.");
+            if ($asset->retired_at) {
+                throw new Exception('Unit ini sudah dilepas dan tidak bisa dikirim.');
             }
 
-            if ($quantity > $asset->qty_available) {
-                throw new Exception("Jumlah melebihi stok di gudang ({$asset->qty_available})");
+            if ($asset->current_holder_id) {
+                throw new Exception('Barang masih dipegang '.$asset->currentHolder?->name.'. Tarik kembali terlebih dahulu.');
+            }
+
+            if (! $asset->currentStatus || ! $asset->currentStatus->transferable) {
+                throw new Exception('Status '.$asset->currentStatus?->name.' tidak bisa dikirim antar cabang.');
+            }
+
+            // Cabang tujuan mengonfirmasi penerimaan unit tertentu, jadi nomor
+            // serinya harus sudah ada sebelum barang berangkat.
+            if ($asset->isMissingRequiredSerial()) {
+                throw new Exception("Nomor seri aset {$asset->asset_code} belum diisi; lengkapi dulu sebelum dikirim.");
             }
 
             $inTransitStatus = AssetStatus::where('code', 'in_transit')->firstOrFail();
+            $branchAsal = $asset->branch_id;
 
-            if ($quantity < $asset->quantity) {
-                // Split asset for mass asset
-                $asset->quantity -= $quantity;
-                $asset->save();
-
-                $targetBranch = Branch::findOrFail($targetBranchId);
-                $newCode = $this->assetCodeGenerator->generate($asset->category, $targetBranch);
-
-                $target = $asset->replicate();
-                $target->asset_code = $newCode;
-                $target->branch_id = $targetBranchId;
-                $target->quantity = $quantity;
-                $target->qty_out = 0;
-                $target->qty_in = 0;
-                $target->qty_available = 0; // will be recomputed
-                $target->split_from_asset_id = $asset->id;
-                $target->current_status_id = $inTransitStatus->id;
-                $target->save();
-
-            } else {
-                $target = $asset;
-                $target->branch_id = $targetBranchId;
-                $target->current_status_id = $inTransitStatus->id;
-                $target->save();
-            }
+            $asset->branch_id = $targetBranchId;
+            $asset->save();
 
             AssetTransaction::create([
-                'asset_id' => $target->id,
+                'asset_id' => $asset->id,
                 'type' => TransactionType::BranchTransfer,
-                'transaction_date' => $data['transaction_date'] ?? now(),
-                'quantity' => $quantity,
-                'from_branch_id' => $asset->branch_id,
+                'transaction_date' => $data['transaction_date'] ?? now()->toDateString(),
+                'from_branch_id' => $branchAsal,
                 'to_branch_id' => $targetBranchId,
                 'status_id' => $inTransitStatus->id,
                 'stock_direction' => 'neutral',
@@ -88,53 +81,44 @@ class BranchTransferService
             ]);
 
             $this->stockCalculator->recompute($asset);
-            if ($target->id !== $asset->id) {
-                $this->stockCalculator->recompute($target);
-            }
 
-            return $target;
+            return $asset->refresh();
         });
     }
 
     /**
-     * Confirm receipt at destination branch.
+     * Konfirmasi penerimaan di cabang tujuan.
      */
-    public function receive(Asset $asset, array $data)
+    public function receive(Asset $asset, array $data): Asset
     {
         return DB::transaction(function () use ($asset, $data) {
-            $asset = Asset::where('id', $asset->id)->lockForUpdate()->first();
+            $asset = Asset::withoutGlobalScopes()->where('id', $asset->id)->lockForUpdate()->first();
 
             $inTransitStatus = AssetStatus::where('code', 'in_transit')->firstOrFail();
             $spareStatus = AssetStatus::where('code', 'spare')->firstOrFail();
 
             if ($asset->current_status_id !== $inTransitStatus->id) {
-                throw new Exception("Aset ini tidak sedang dalam perjalanan");
+                throw new Exception('Aset ini tidak sedang dalam perjalanan.');
             }
 
-            if (auth()->user()->role === \App\Enums\Role::AdminCabang && auth()->user()->branch_id !== $asset->branch_id) {
-                throw new Exception("Hanya cabang tujuan yang bisa mengonfirmasi penerimaan");
+            if (auth()->user()->role === Role::AdminCabang && auth()->user()->branch_id !== $asset->branch_id) {
+                throw new Exception('Hanya cabang tujuan yang bisa mengonfirmasi penerimaan.');
             }
 
             AssetTransaction::create([
                 'asset_id' => $asset->id,
                 'type' => TransactionType::StatusChange,
-                'transaction_date' => $data['transaction_date'] ?? now(),
-                'quantity' => $asset->quantity,
+                'transaction_date' => $data['transaction_date'] ?? now()->toDateString(),
                 'status_id' => $spareStatus->id,
                 'condition_after_id' => $data['condition_id'] ?? $asset->condition_id,
                 'stock_direction' => 'neutral',
-                'notes' => 'Tiba di cabang tujuan: ' . ($data['notes'] ?? ''),
+                'notes' => trim('Tiba di cabang tujuan. '.($data['notes'] ?? '')),
                 'created_by' => auth()->id(),
             ]);
 
-            if (isset($data['condition_id'])) {
-                $asset->condition_id = $data['condition_id'];
-                $asset->save();
-            }
-
             $this->stockCalculator->recompute($asset);
 
-            return $asset;
+            return $asset->refresh();
         });
     }
 }

@@ -11,8 +11,6 @@ class AssetCodeGenerator
      * Generate a new asset code for the given category.
      * Must be called within a database transaction or it will create its own.
      *
-     * @param Category $category
-     * @return string
      * @throws \Exception
      */
     public function generate(Category $category): string
@@ -20,9 +18,9 @@ class AssetCodeGenerator
         return DB::transaction(function () use ($category) {
             // Lock the category row to prevent race conditions
             $lockedCategory = Category::where('id', $category->id)->lockForUpdate()->first();
-            
-            if (!$lockedCategory) {
-                throw new \Exception("Category not found.");
+
+            if (! $lockedCategory) {
+                throw new \Exception('Category not found.');
             }
 
             // Increment sequence
@@ -31,7 +29,7 @@ class AssetCodeGenerator
 
             // Format: IDS-{category.code_prefix}-{seq:3 digit}
             $seqPadded = str_pad($lockedCategory->last_seq, 3, '0', STR_PAD_LEFT);
-            
+
             return "IDS-{$lockedCategory->code_prefix}-{$seqPadded}";
         });
     }

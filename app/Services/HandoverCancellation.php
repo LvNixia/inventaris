@@ -2,17 +2,18 @@
 
 namespace App\Services;
 
+use App\Enums\TransactionType;
 use App\Models\Asset;
 use App\Models\AssetStatus;
 use App\Models\AssetTransaction;
 use App\Models\HandoverDocument;
-use Illuminate\Support\Facades\DB;
-use App\Enums\TransactionType;
 use Exception;
+use Illuminate\Support\Facades\DB;
 
 class HandoverCancellation
 {
     protected StockCalculator $stockCalculator;
+
     protected PdfRenderer $pdfRenderer;
 
     public function __construct(StockCalculator $stockCalculator, PdfRenderer $pdfRenderer)
@@ -30,16 +31,16 @@ class HandoverCancellation
             $doc = HandoverDocument::where('id', $doc->id)->lockForUpdate()->first();
 
             if ($doc->status !== 'issued') {
-                throw new Exception("Hanya surat terbit yang bisa dibatalkan");
+                throw new Exception('Hanya surat terbit yang bisa dibatalkan');
             }
             if (empty(trim($reason))) {
-                throw new Exception("Alasan wajib diisi");
+                throw new Exception('Alasan wajib diisi');
             }
 
             // Lock all assets
             $assetIds = $doc->items()->pluck('asset_id')->toArray();
             sort($assetIds); // prevent deadlock
-            
+
             $assets = Asset::whereIn('id', $assetIds)->lockForUpdate()->get()->keyBy('id');
             $spareStatus = AssetStatus::where('code', 'spare')->firstOrFail();
 
@@ -55,9 +56,9 @@ class HandoverCancellation
                         ->orderByDesc('transaction_date')
                         ->orderByDesc('id')
                         ->first();
-                    
+
                     if ($lastTx && $lastTx->handover_document_id !== $doc->id) {
-                        $errors[] = "Aset {$asset->asset_code} sudah bergerak setelah surat ini (transaksi #{$lastTx->id}, " . ucfirst($lastTx->type->value) . "). Batalkan lewat koreksi.";
+                        $errors[] = "Aset {$asset->asset_code} sudah bergerak setelah surat ini (transaksi #{$lastTx->id}, ".ucfirst($lastTx->type->value).'). Batalkan lewat koreksi.';
                     }
                 } else {
                     // Mass asset: ensure the second party still has enough balance
@@ -65,7 +66,7 @@ class HandoverCancellation
                         ->where('stock_direction', 'out')
                         ->where('to_employee_id', $doc->second_party_id)
                         ->sum('quantity');
-                        
+
                     $qtyIn = AssetTransaction::where('asset_id', $asset->id)
                         ->where('stock_direction', 'in')
                         ->where('from_employee_id', $doc->second_party_id)
@@ -79,7 +80,7 @@ class HandoverCancellation
                 }
             }
 
-            if (!empty($errors)) {
+            if (! empty($errors)) {
                 throw new Exception(implode("\n", $errors));
             }
 
@@ -106,7 +107,7 @@ class HandoverCancellation
                     ->where('type', TransactionType::BranchTransfer)
                     ->where('asset_id', $asset->id)
                     ->first();
-                
+
                 if ($branchTransfer) {
                     AssetTransaction::create([
                         'asset_id' => $asset->id,

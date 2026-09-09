@@ -16,6 +16,8 @@ use App\Models\Division;
 use App\Models\Employee;
 use App\Models\HandoverDocument;
 use App\Models\Position;
+use App\Models\Product;
+use App\Models\PurchaseBatch;
 use App\Models\ServiceKind;
 use App\Models\ServiceResult;
 use App\Models\User;
@@ -27,6 +29,7 @@ use App\Services\ServiceService;
 use App\Services\TransactionService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -36,8 +39,8 @@ use Illuminate\Support\Facades\Storage;
  * Data simulasi untuk mencoba laporan dan alur kerja aplikasi.
  *
  * Semua pergerakan aset dibuat lewat service aplikasi (serah terima, servis,
- * pindah cabang, pelepasan), bukan insert langsung, supaya perhitungan stok
- * dan riwayat transaksinya konsisten dengan aturan bisnis yang berlaku.
+ * pindah cabang, pelepasan), bukan insert langsung, supaya riwayat transaksinya
+ * konsisten dengan aturan bisnis yang berlaku.
  *
  * Jalankan dengan:
  *   php artisan db:seed --class=DemoDataSeeder
@@ -58,8 +61,15 @@ class DemoDataSeeder extends Seeder
     /** @var array<string, Employee> */
     protected array $employees = [];
 
-    /** @var array<string, Asset> */
-    protected array $assets = [];
+    /** @var array<string, Product> */
+    protected array $products = [];
+
+    /**
+     * Unit hasil pembelian, dikelompokkan per kunci barang.
+     *
+     * @var array<string, Collection<int, Asset>>
+     */
+    protected array $units = [];
 
     public function run(): void
     {
@@ -72,7 +82,8 @@ class DemoDataSeeder extends Seeder
         if (Asset::withoutGlobalScopes()->exists()) {
             $this->command->warn('Dibatalkan: tabel aset sudah berisi data.');
             $this->command->line('Kosongkan dulu bila memang ingin memakai data simulasi:');
-            $this->command->line('  php artisan migrate:fresh --seed');
+            $this->command->line('  php artisan migrate:fresh');
+            $this->command->line('  php artisan db:seed --class=MasterSeeder');
             $this->command->line('  php artisan db:seed --class=DemoDataSeeder');
 
             return;
@@ -98,7 +109,8 @@ class DemoDataSeeder extends Seeder
             $this->siapkanMaster();
             $this->buatKaryawan();
             $this->buatPenggunaCabang();
-            $this->buatAset();
+            $this->buatBarang();
+            $this->buatPembelian();
             $this->serahkanAset();
             $this->tarikSebagian();
             $this->buatServis();
@@ -199,75 +211,126 @@ class DemoDataSeeder extends Seeder
         );
     }
 
-    protected function buatAset(): void
+    /**
+     * Katalog barang. Satu baris per jenis, dipakai berulang oleh pembelian.
+     */
+    protected function buatBarang(): void
     {
-        $registered = AssetStatus::where('code', 'registered')->firstOrFail();
-        $baik = Condition::where('code', 'baik')->firstOrFail();
-
-        // kunci, kategori, merek, model, jumlah, harga, bulan lalu dibeli, garansi (bulan), cabang, spesifikasi
         $data = [
-            ['lap1', 'LAP', 'Lenovo', 'ThinkPad T14 Gen 3', 1, 18500000, 14, 36, 'JKT', ['CPU' => 'Core i7-1255U', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['lap2', 'LAP', 'Dell', 'Latitude 5430', 1, 16200000, 26, 36, 'JKT', ['CPU' => 'Core i5-1235U', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['lap3', 'LAP', 'HP', 'ProBook 440 G9', 1, 14800000, 8, 24, 'JKT', ['CPU' => 'Core i5-1235U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['lap4', 'LAP', 'Asus', 'ExpertBook B1400', 1, 12900000, 40, 24, 'JKT', ['CPU' => 'Core i5-1135G7', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 256GB']],
-            ['lap5', 'LAP', 'Lenovo', 'ThinkPad E14 Gen 4', 1, 13500000, 20, 24, 'BTM', ['CPU' => 'Ryzen 5 5625U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['lap6', 'LAP', 'Dell', 'Vostro 3520', 1, 11200000, 5, 24, 'BTM', ['CPU' => 'Core i5-1235U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['pc1', 'PC', 'HP', 'ProDesk 400 G9', 1, 12400000, 30, 36, 'JKT', ['CPU' => 'Core i5-12500', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['pc2', 'PC', 'Lenovo', 'ThinkCentre M70q', 1, 13900000, 18, 36, 'JKT', ['CPU' => 'Core i5-12400T', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
-            ['pc3', 'PC', 'Asus', 'ExpertCenter D500SC', 1, 9800000, 44, 24, 'BTM', ['CPU' => 'Core i3-10105', 'RAM' => '8GB', 'Penyimpanan' => 'HDD 1TB']],
-            ['mon1', 'MON', 'Dell', 'P2422H 24"', 4, 2650000, 18, 36, 'JKT', ['Ukuran' => '24 inci', 'Resolusi' => '1920x1080']],
-            ['mon2', 'MON', 'Samsung', 'LS24C310 24"', 3, 1750000, 6, 24, 'BTM', ['Ukuran' => '24 inci', 'Resolusi' => '1920x1080']],
-            ['prn1', 'PRN', 'Epson', 'L3210 EcoTank', 2, 2450000, 22, 24, 'JKT', ['Jenis' => 'Inkjet', 'Fungsi' => 'Print/Scan/Copy']],
-            ['prn2', 'PRN', 'HP', 'LaserJet M211d', 1, 3200000, 10, 12, 'BTM', ['Jenis' => 'Laser', 'Fungsi' => 'Print']],
-            ['smp1', 'SMP', 'Samsung', 'Galaxy A54 5G', 1, 5900000, 12, 12, 'JKT', ['RAM' => '8GB', 'Penyimpanan' => '256GB']],
-            ['smp2', 'SMP', 'Xiaomi', 'Redmi Note 12', 1, 2700000, 16, 12, 'BTM', ['RAM' => '6GB', 'Penyimpanan' => '128GB']],
-            ['tab1', 'TAB', 'Samsung', 'Galaxy Tab A8', 1, 3300000, 24, 12, 'JKT', ['Ukuran' => '10.5 inci', 'Penyimpanan' => '64GB']],
-            ['acc1', 'ACC', 'Logitech', 'MK270 Keyboard Mouse', 8, 350000, 14, 12, 'JKT', ['Koneksi' => 'Wireless']],
-            ['acc2', 'ACC', 'Logitech', 'C920 HD Webcam', 3, 1250000, 15, 24, 'JKT', ['Resolusi' => '1080p']],
-            ['lss1', 'LSS', 'Microsoft', 'Microsoft 365 Business Standard', 10, 2100000, 4, 12, 'JKT', ['Jenis' => 'Langganan tahunan']],
-            ['lss2', 'LSS', 'Microsoft', 'Windows 11 Pro OEM', 5, 2900000, 28, 0, 'JKT', ['Jenis' => 'Lisensi perpetual']],
+            // kunci, kategori, merek, model, spesifikasi
+            ['thinkpad_t14', 'LAP', 'Lenovo', 'ThinkPad T14 Gen 3', ['CPU' => 'Core i7-1255U', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['latitude_5430', 'LAP', 'Dell', 'Latitude 5430', ['CPU' => 'Core i5-1235U', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['probook_440', 'LAP', 'HP', 'ProBook 440 G9', ['CPU' => 'Core i5-1235U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['expertbook_b1400', 'LAP', 'Asus', 'ExpertBook B1400', ['CPU' => 'Core i5-1135G7', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 256GB']],
+            ['thinkpad_e14', 'LAP', 'Lenovo', 'ThinkPad E14 Gen 4', ['CPU' => 'Ryzen 5 5625U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['vostro_3520', 'LAP', 'Dell', 'Vostro 3520', ['CPU' => 'Core i5-1235U', 'RAM' => '8GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['prodesk_400', 'PC', 'HP', 'ProDesk 400 G9', ['CPU' => 'Core i5-12500', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['thinkcentre_m70q', 'PC', 'Lenovo', 'ThinkCentre M70q', ['CPU' => 'Core i5-12400T', 'RAM' => '16GB', 'Penyimpanan' => 'SSD 512GB']],
+            ['expertcenter_d500', 'PC', 'Asus', 'ExpertCenter D500SC', ['CPU' => 'Core i3-10105', 'RAM' => '8GB', 'Penyimpanan' => 'HDD 1TB']],
+            ['dell_p2422h', 'MON', 'Dell', 'P2422H 24"', ['Ukuran' => '24 inci', 'Resolusi' => '1920x1080']],
+            ['samsung_ls24', 'MON', 'Samsung', 'LS24C310 24"', ['Ukuran' => '24 inci', 'Resolusi' => '1920x1080']],
+            ['epson_l3210', 'PRN', 'Epson', 'L3210 EcoTank', ['Jenis' => 'Inkjet', 'Fungsi' => 'Print/Scan/Copy']],
+            ['hp_m211d', 'PRN', 'HP', 'LaserJet M211d', ['Jenis' => 'Laser', 'Fungsi' => 'Print']],
+            ['galaxy_a54', 'SMP', 'Samsung', 'Galaxy A54 5G', ['RAM' => '8GB', 'Penyimpanan' => '256GB']],
+            ['redmi_note12', 'SMP', 'Xiaomi', 'Redmi Note 12', ['RAM' => '6GB', 'Penyimpanan' => '128GB']],
+            ['galaxy_tab_a8', 'TAB', 'Samsung', 'Galaxy Tab A8', ['Ukuran' => '10.5 inci', 'Penyimpanan' => '64GB']],
+            ['mk270', 'ACC', 'Logitech', 'MK270 Keyboard Mouse', ['Koneksi' => 'Wireless']],
+            ['c920', 'ACC', 'Logitech', 'C920 HD Webcam', ['Resolusi' => '1080p']],
+            ['m365', 'LSS', 'Microsoft', 'Microsoft 365 Business Standard', ['Jenis' => 'Langganan tahunan']],
+            ['win11_pro', 'LSS', 'Microsoft', 'Windows 11 Pro OEM', ['Jenis' => 'Lisensi perpetual']],
         ];
 
-        $vendorJkt = Vendor::where('name', 'Sinar Terang Komputer')->value('id');
-        $vendorBtm = Vendor::where('name', 'Batam Jaya Elektronik')->value('id');
-        $service = app(AssetService::class);
-        $urut = 0;
-
-        foreach ($data as [$kunci, $kategori, $merek, $model, $jumlah, $harga, $umurBulan, $garansiBulan, $cabang, $spesifikasi]) {
-            $urut++;
-            $tanggalBeli = now()->subMonths($umurBulan)->startOfMonth()->addDays(($urut * 3) % 27);
-            $perluSeri = Category::where('code_prefix', $kategori)->value('requires_serial');
-
-            $asset = $service->create([
+        foreach ($data as [$kunci, $kategori, $merek, $model, $spesifikasi]) {
+            $this->products[$kunci] = Product::create([
                 'category_id' => Category::where('code_prefix', $kategori)->value('id'),
                 'brand_id' => Brand::where('name', $merek)->value('id'),
                 'model' => $model,
-                'quantity' => $jumlah,
-                'serial_number' => $perluSeri
-                    ? strtoupper($kategori).'-'.str_pad((string) $urut, 4, '0', STR_PAD_LEFT).'-'.rand(1000, 9999)
-                    : null,
-                // Ponsel wajib punya IMEI; nomor dibuat berpola agar mudah dikenali
-                // sebagai data simulasi.
-                'imei_1' => $kategori === 'SMP'
-                    ? '35'.str_pad((string) $urut, 6, '0', STR_PAD_LEFT).str_pad((string) rand(0, 9999999), 7, '0', STR_PAD_LEFT)
-                    : null,
-                // Semua aset dibeli dalam keadaan baik; kerusakan muncul
-                // belakangan lewat pelaporan, bukan sejak hari pembelian.
-                'condition_id' => $baik->id,
                 'specifications' => $spesifikasi,
-                'purchase_date' => $tanggalBeli,
+                'is_active' => true,
+            ]);
+        }
+    }
+
+    /**
+     * Pembelian beserta unit-unitnya. Barang bernomor seri mendapat serial per
+     * unit; barang lot seperti kabel dan lisensi dibuat tanpa serial.
+     */
+    protected function buatPembelian(): void
+    {
+        $service = app(AssetService::class);
+        $vendorJkt = Vendor::where('name', 'Sinar Terang Komputer')->value('id');
+        $vendorBtm = Vendor::where('name', 'Batam Jaya Elektronik')->value('id');
+
+        // kunci barang, jumlah unit, harga, umur bulan, garansi bulan, cabang
+        $data = [
+            ['thinkpad_t14', 1, 18500000, 14, 36, 'JKT'],
+            ['latitude_5430', 1, 16200000, 26, 36, 'JKT'],
+            ['probook_440', 1, 14800000, 8, 24, 'JKT'],
+            ['expertbook_b1400', 1, 12900000, 40, 24, 'JKT'],
+            ['thinkpad_e14', 1, 13500000, 20, 24, 'BTM'],
+            ['vostro_3520', 1, 11200000, 5, 24, 'BTM'],
+            ['prodesk_400', 1, 12400000, 30, 36, 'JKT'],
+            ['thinkcentre_m70q', 1, 13900000, 18, 36, 'JKT'],
+            ['expertcenter_d500', 1, 9800000, 44, 24, 'BTM'],
+            ['dell_p2422h', 4, 2650000, 18, 36, 'JKT'],
+            ['samsung_ls24', 3, 1750000, 6, 24, 'BTM'],
+            ['epson_l3210', 2, 2450000, 22, 24, 'JKT'],
+            ['hp_m211d', 1, 3200000, 10, 12, 'BTM'],
+            ['galaxy_a54', 1, 5900000, 12, 12, 'JKT'],
+            ['redmi_note12', 1, 2700000, 16, 12, 'BTM'],
+            ['galaxy_tab_a8', 1, 3300000, 24, 12, 'JKT'],
+            ['mk270', 8, 350000, 14, 12, 'JKT'],
+            ['c920', 3, 1250000, 15, 24, 'JKT'],
+            ['m365', 10, 2100000, 4, 12, 'JKT'],
+            ['win11_pro', 5, 2900000, 28, 0, 'JKT'],
+            // Pembelian ulang barang yang sama: menambah batch, bukan barang baru.
+            ['mk270', 4, 385000, 2, 12, 'JKT'],
+        ];
+
+        $urut = 0;
+
+        foreach ($data as [$kunciBarang, $jumlah, $harga, $umurBulan, $garansiBulan, $cabang]) {
+            $urut++;
+            $produk = $this->products[$kunciBarang];
+            $tanggalBeli = now()->subMonths($umurBulan)->startOfMonth()->addDays(($urut * 3) % 27);
+            $perluSeri = $produk->requiresSerialNumber();
+            $kodeKategori = $produk->category->code_prefix;
+
+            $units = [];
+
+            for ($i = 1; $i <= $jumlah; $i++) {
+                $units[] = [
+                    'serial_number' => $perluSeri
+                        ? sprintf('%s-%03d-%04d', strtoupper($kodeKategori), $urut, $i * 137 + $urut)
+                        : null,
+                    'imei_1' => $kodeKategori === 'SMP'
+                        ? '35'.str_pad((string) $urut, 6, '0', STR_PAD_LEFT).str_pad((string) ($i * 4321), 7, '0', STR_PAD_LEFT)
+                        : null,
+                ];
+            }
+
+            $unitBaru = $service->receivePurchase([
+                'product_id' => $produk->id,
+                'branch_id' => $this->branches[$cabang]->id,
                 'vendor_id' => $cabang === 'BTM' ? $vendorBtm : $vendorJkt,
                 'invoice_number' => 'INV/'.$tanggalBeli->format('Y/m').'/'.str_pad((string) $urut, 3, '0', STR_PAD_LEFT),
+                'purchase_date' => $tanggalBeli,
                 'unit_price' => $harga,
-                'warranty_until' => $garansiBulan > 0 ? $tanggalBeli->copy()->addMonths($garansiBulan) : null,
-                'branch_id' => $this->branches[$cabang]->id,
-            ]);
+                'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
+            ], $units);
 
-            // Aset baru berstatus kosong; ditandai "Terdaftar" agar bisa diserahkan.
-            $asset->update(['current_status_id' => $registered->id]);
-
-            $this->assets[$kunci] = $asset->refresh();
+            $this->units[$kunciBarang] = isset($this->units[$kunciBarang])
+                ? $this->units[$kunciBarang]->concat($unitBaru)
+                : $unitBaru;
         }
+    }
+
+    /**
+     * Ambil satu unit tertentu dari sebuah barang.
+     */
+    protected function unit(string $kunciBarang, int $nomor = 1): Asset
+    {
+        return $this->units[$kunciBarang][$nomor - 1]->refresh();
     }
 
     /**
@@ -284,49 +347,49 @@ class DemoDataSeeder extends Seeder
                 'penerima' => 'siti',
                 'saksi' => 'dewi',
                 'bulanLalu' => 10,
-                'barang' => [['lap2', 1], ['mon1', 1], ['acc1', 1]],
+                'barang' => [['latitude_5430', 1], ['dell_p2422h', 1], ['mk270', 1]],
             ],
             [
                 'cabang' => 'JKT',
                 'penerima' => 'agus',
                 'saksi' => 'dewi',
                 'bulanLalu' => 7,
-                'barang' => [['lap3', 1], ['acc2', 1]],
+                'barang' => [['probook_440', 1], ['c920', 1]],
             ],
             [
                 'cabang' => 'JKT',
                 'penerima' => 'rizky',
                 'saksi' => 'dewi',
                 'bulanLalu' => 5,
-                'barang' => [['smp1', 1], ['tab1', 1]],
+                'barang' => [['galaxy_a54', 1], ['galaxy_tab_a8', 1]],
             ],
             [
                 'cabang' => 'JKT',
                 'penerima' => 'hendra', // karyawan nonaktif: sengaja masih memegang aset
                 'saksi' => 'dewi',
                 'bulanLalu' => 15,
-                'barang' => [['pc1', 1], ['mon1', 1]],
+                'barang' => [['prodesk_400', 1], ['dell_p2422h', 2]],
             ],
             [
                 'cabang' => 'JKT',
                 'penerima' => 'maya', // karyawan nonaktif kedua
                 'saksi' => 'dewi',
                 'bulanLalu' => 12,
-                'barang' => [['lap1', 1]],
+                'barang' => [['thinkpad_t14', 1]],
             ],
             [
                 'cabang' => 'BTM',
                 'penerima' => 'lina',
                 'saksi' => 'fajar',
                 'bulanLalu' => 6,
-                'barang' => [['lap5', 1], ['mon2', 1]],
+                'barang' => [['thinkpad_e14', 1], ['samsung_ls24', 1]],
             ],
             [
                 'cabang' => 'BTM',
                 'penerima' => 'doni',
                 'saksi' => 'fajar',
                 'bulanLalu' => 3,
-                'barang' => [['smp2', 1], ['prn2', 1]],
+                'barang' => [['redmi_note12', 1], ['hp_m211d', 1]],
             ],
         ];
 
@@ -343,10 +406,9 @@ class DemoDataSeeder extends Seeder
                 'created_by' => $this->admin->id,
             ]);
 
-            foreach ($item['barang'] as [$kunciAset, $jumlah]) {
+            foreach ($item['barang'] as [$kunciBarang, $nomorUnit]) {
                 $doc->items()->create([
-                    'asset_id' => $this->assets[$kunciAset]->id,
-                    'quantity' => $jumlah,
+                    'asset_id' => $this->unit($kunciBarang, $nomorUnit)->id,
                     'user_employee_id' => $this->employees[$item['penerima']]->id,
                 ]);
             }
@@ -367,23 +429,21 @@ class DemoDataSeeder extends Seeder
         ]);
 
         $draf->items()->create([
-            'asset_id' => $this->assets['acc1']->id,
-            'quantity' => 1,
+            'asset_id' => $this->unit('mk270', 2)->id,
             'user_employee_id' => $this->employees['putri']->id,
         ]);
     }
 
     /**
      * Tanggal surat serah terima: sekian bulan lalu, tetapi tidak pernah
-     * mendahului pembelian barang yang diserahkan. Tanpa penjagaan ini, sedikit
-     * perubahan pada umur aset bisa membuat barang diserahkan sebelum dibeli.
+     * mendahului pembelian barang yang diserahkan.
      */
     protected function tanggalSerahTerima(int $bulanLalu, array $barang): Carbon
     {
         $tanggal = now()->subMonths($bulanLalu)->startOfDay();
 
         $pembelianTerbaru = collect($barang)
-            ->map(fn (array $baris): ?Carbon => $this->assets[$baris[0]]->purchase_date)
+            ->map(fn (array $baris) => $this->unit($baris[0], $baris[1])->purchaseBatch?->purchase_date)
             ->filter()
             ->max();
 
@@ -403,19 +463,17 @@ class DemoDataSeeder extends Seeder
         $transaksi = app(TransactionService::class);
         $baik = Condition::where('code', 'baik')->value('id');
 
-        // Tanggal ditulis eksplisit karena kedua barang ini nanti dikirim ke
+        // Tanggal ditulis eksplisit karena kedua unit ini nanti dikirim ke
         // cabang lain; penarikan harus mendahului pengirimannya.
-        $transaksi->return($this->assets['acc2']->refresh(), [
+        $transaksi->return($this->unit('c920', 1), [
             'from_employee_id' => $this->employees['agus']->id,
-            'quantity' => 1,
             'transaction_date' => now()->subDays(25)->toDateString(),
             'condition_after_id' => $baik,
             'notes' => 'Dikembalikan karena ganti perangkat.',
         ]);
 
-        $transaksi->return($this->assets['tab1']->refresh(), [
+        $transaksi->return($this->unit('galaxy_tab_a8', 1), [
             'from_employee_id' => $this->employees['rizky']->id,
-            'quantity' => 1,
             'transaction_date' => now()->subDays(10)->toDateString(),
             'condition_after_id' => $baik,
             'notes' => 'Kegiatan pameran sudah selesai.',
@@ -431,14 +489,14 @@ class DemoDataSeeder extends Seeder
         $perawatan = ServiceKind::where('code', 'perawatan')->value('id');
 
         // 1. Servis selesai: keyboard laptop diganti.
-        $rec = $service->open($this->assets['lap4']->refresh(), [
+        $rec = $service->open($this->unit('expertbook_b1400', 1), [
             'service_kind_id' => $perbaikan,
             'performed_by' => 'vendor',
             'vendor_id' => $vendorServis,
             'item_left' => true,
             'started_at' => now()->subDays(38),
             'expected_at' => now()->subDays(31),
-            'ticket_ref' => 'TKT-2024-0181',
+            'ticket_ref' => 'TKT-2026-0181',
             'complaint' => 'Beberapa tombol keyboard tidak berfungsi.',
         ]);
 
@@ -454,14 +512,16 @@ class DemoDataSeeder extends Seeder
             'status_setelah' => 'spare',
         ]);
 
-        // 2. Upgrade selesai: penambahan RAM.
-        $rec = $service->open($this->assets['pc3']->refresh(), [
+        // 2. Upgrade selesai: penambahan RAM. Spesifikasi unit ini jadi berbeda
+        //    dari spesifikasi bawaan barangnya.
+        $rec = $service->open($this->unit('expertcenter_d500', 1), [
             'service_kind_id' => $upgrade,
             'performed_by' => 'internal',
             'item_left' => true,
             'started_at' => now()->subDays(20),
             'expected_at' => now()->subDays(18),
             'complaint' => 'Permintaan penambahan RAM agar tidak lambat.',
+            'spec_after' => ['CPU' => 'Core i3-10105', 'RAM' => '16GB', 'Penyimpanan' => 'HDD 1TB'],
         ]);
 
         $service->close($rec->refresh(), [
@@ -474,20 +534,21 @@ class DemoDataSeeder extends Seeder
             'status_setelah' => 'spare',
         ]);
 
-        // 3. Servis masih berjalan dan sudah lewat estimasi.
-        $service->open($this->assets['prn1']->refresh(), [
+        // 3. Servis masih berjalan dan sudah lewat estimasi. Hanya satu unit
+        //    printer yang masuk servis; unit lainnya tetap bisa diserahkan.
+        $service->open($this->unit('epson_l3210', 1), [
             'service_kind_id' => $perbaikan,
             'performed_by' => 'vendor',
             'vendor_id' => $vendorServis,
             'item_left' => true,
             'started_at' => now()->subDays(12),
             'expected_at' => now()->subDays(4),
-            'ticket_ref' => 'TKT-2024-0207',
+            'ticket_ref' => 'TKT-2026-0207',
             'complaint' => 'Hasil cetak bergaris, head diduga tersumbat.',
         ]);
 
         // 4. Perawatan rutin yang masih berjalan sesuai jadwal.
-        $service->open($this->assets['pc2']->refresh(), [
+        $service->open($this->unit('thinkcentre_m70q', 1), [
             'service_kind_id' => $perawatan,
             'performed_by' => 'internal',
             'item_left' => false,
@@ -501,34 +562,25 @@ class DemoDataSeeder extends Seeder
     {
         $transfer = app(BranchTransferService::class);
 
-        // Hanya barang yang seluruhnya ada di gudang yang boleh dikirim;
-        // acc2 dan tab1 sudah ditarik kembali dari pemegangnya di tahap sebelumnya.
-        $transfer->send($this->assets['acc2']->refresh(), [
+        // Unit yang sama berpindah cabang; tidak ada lagi pemecahan baris.
+        $webcam = $this->unit('c920', 1);
+
+        $transfer->send($webcam, [
             'to_branch_id' => $this->branches['BTM']->id,
-            'quantity' => 1,
-            'transaction_date' => now()->subDays(21),
+            'transaction_date' => now()->subDays(21)->toDateString(),
             'notes' => 'Resi JNE 884120033. Penambahan webcam untuk cabang Batam.',
         ]);
 
-        $dikirim = Asset::withoutGlobalScopes()
-            ->where('branch_id', $this->branches['BTM']->id)
-            ->whereHas('currentStatus', fn ($q) => $q->where('code', 'in_transit'))
-            ->latest('id')
-            ->first();
-
-        if ($dikirim) {
-            $transfer->receive($dikirim, [
-                'transaction_date' => now()->subDays(17),
-                'condition_id' => Condition::where('code', 'baik')->value('id'),
-                'notes' => 'Barang diterima dalam keadaan baik.',
-            ]);
-        }
+        $transfer->receive($webcam->refresh(), [
+            'transaction_date' => now()->subDays(17)->toDateString(),
+            'condition_id' => Condition::where('code', 'baik')->value('id'),
+            'notes' => 'Barang diterima dalam keadaan baik.',
+        ]);
 
         // Masih dalam perjalanan: muncul di laporan "kiriman belum diterima".
-        $transfer->send($this->assets['tab1']->refresh(), [
+        $transfer->send($this->unit('galaxy_tab_a8', 1), [
             'to_branch_id' => $this->branches['BTM']->id,
-            'quantity' => 1,
-            'transaction_date' => now()->subDays(6),
+            'transaction_date' => now()->subDays(6)->toDateString(),
             'notes' => 'Resi JNE 884120987. Menunggu konfirmasi penerimaan.',
         ]);
     }
@@ -538,7 +590,7 @@ class DemoDataSeeder extends Seeder
      */
     protected function laporkanKerusakan(): void
     {
-        app(TransactionService::class)->changeStatus($this->assets['lap6']->refresh(), [
+        app(TransactionService::class)->changeStatus($this->unit('vostro_3520', 1), [
             'status_id' => AssetStatus::where('code', 'broken')->value('id'),
             'condition_after_id' => Condition::where('code', 'rusak_ringan')->value('id'),
             'transaction_date' => now()->subDays(35)->toDateString(),
@@ -552,17 +604,17 @@ class DemoDataSeeder extends Seeder
 
         // Lisensi OEM terikat pada perangkat aslinya dan tidak bisa dipindah
         // atau dijual, jadi ikut dihapuskan saat PC-nya dipensiunkan.
-        $transaksi->dispose($this->assets['lss2']->refresh(), [
-            'quantity' => 2,
-            'transaction_date' => now()->subDays(45)->toDateString(),
-            'disposal_reason_id' => DisposalReason::where('code', 'dibuang')->value('id'),
-            'notes' => 'PC yang memakai lisensi ini sudah dipensiunkan; lisensi OEM tidak dapat dipindahkan.',
-        ]);
+        foreach ([1, 2] as $nomor) {
+            $transaksi->dispose($this->unit('win11_pro', $nomor), [
+                'transaction_date' => now()->subDays(45)->toDateString(),
+                'disposal_reason_id' => DisposalReason::where('code', 'dibuang')->value('id'),
+                'notes' => 'PC yang memakai lisensi ini sudah dipensiunkan; lisensi OEM tidak dapat dipindahkan.',
+            ]);
+        }
 
         // Hilang saat masih dipegang karyawan: sistem otomatis menarik unitnya
         // dulu, lalu menghapusbukukan. Muncul pada laporan kehilangan.
-        $transaksi->dispose($this->assets['smp2']->refresh(), [
-            'quantity' => 1,
+        $transaksi->dispose($this->unit('redmi_note12', 1), [
             'transaction_date' => now()->subDays(20)->toDateString(),
             'disposal_reason_id' => DisposalReason::where('code', 'hilang')->value('id'),
             'notes' => 'Hilang saat perjalanan dinas; sudah dilaporkan ke atasan.',
@@ -578,26 +630,27 @@ class DemoDataSeeder extends Seeder
         $disk = Storage::disk(config('filesystems.default'));
         $jenis = AttachmentType::pluck('id', 'code');
 
-        // Servis lap4 yang sudah ditutup; tanda terimanya ditautkan ke sana.
-        $servisSelesai = \App\Models\AssetService::where('asset_id', $this->assets['lap4']->id)
+        $laptopServis = $this->unit('expertbook_b1400', 1);
+
+        $servisSelesai = \App\Models\AssetService::where('asset_id', $laptopServis->id)
             ->whereNotNull('finished_at')
             ->first();
 
         $daftar = [
-            ['lap1', 'photo', 'foto-thinkpad-t14.png', null],
-            ['lap1', 'invoice', 'faktur-thinkpad-t14.pdf', null],
-            ['lap2', 'warranty', 'kartu-garansi-latitude-5430.pdf', null],
-            ['lap4', 'service_receipt', 'tanda-terima-servis-keyboard.pdf', $servisSelesai?->id],
+            [$this->unit('thinkpad_t14', 1), 'photo', 'foto-thinkpad-t14.png', null],
+            [$this->unit('thinkpad_t14', 1), 'invoice', 'faktur-thinkpad-t14.pdf', null],
+            [$this->unit('latitude_5430', 1), 'warranty', 'kartu-garansi-latitude-5430.pdf', null],
+            [$laptopServis, 'service_receipt', 'tanda-terima-servis-keyboard.pdf', $servisSelesai?->id],
         ];
 
-        foreach ($daftar as [$kunciAset, $kodeJenis, $namaBerkas, $servisId]) {
+        foreach ($daftar as [$asset, $kodeJenis, $namaBerkas, $servisId]) {
             $isi = str_ends_with($namaBerkas, '.png') ? $this->berkasPng() : $this->berkasPdf($namaBerkas);
             $path = 'asset-attachments/demo-'.$namaBerkas;
 
             $disk->put($path, $isi);
 
             AssetAttachment::create([
-                'asset_id' => $this->assets[$kunciAset]->id,
+                'asset_id' => $asset->id,
                 'service_id' => $servisId,
                 'attachment_type_id' => $jenis[$kodeJenis],
                 'path' => $path,
@@ -657,8 +710,9 @@ class DemoDataSeeder extends Seeder
     {
         $baris = [
             'Karyawan' => Employee::withoutGlobalScopes()->count(),
-            'Aset' => Asset::withoutGlobalScopes()->count(),
-            'Unit aset' => (int) Asset::withoutGlobalScopes()->sum('quantity'),
+            'Barang (katalog)' => Product::count(),
+            'Pembelian (batch)' => PurchaseBatch::withoutGlobalScopes()->count(),
+            'Unit aset' => Asset::withoutGlobalScopes()->count(),
             'Surat serah terima' => HandoverDocument::withoutGlobalScopes()->count(),
             'Transaksi' => AssetTransaction::count(),
             'Catatan servis' => \App\Models\AssetService::count(),
@@ -681,9 +735,10 @@ class DemoDataSeeder extends Seeder
         $this->command->line('  - pelepasan aset: dibuang dan hilang');
         $this->command->line('  - 1 surat serah terima berstatus draf');
         $this->command->line('  - 4 lampiran berkas, salah satunya tertaut ke catatan servis');
+        $this->command->line('  - 1 barang dibeli dua kali dengan harga berbeda');
 
         $this->command->newLine();
-        $this->command->line('Akun untuk masuk (kata sandi: ' . self::KATA_SANDI_DEMO . '):');
+        $this->command->line('Akun untuk masuk (kata sandi: '.self::KATA_SANDI_DEMO.'):');
         $this->command->line('  admin@indosurta.test   Admin Pusat');
         $this->command->line('  batam@indosurta.test   Admin Cabang Batam');
     }

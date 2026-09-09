@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use OpenSpout\Writer\XLSX\Writer;
 use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
 
 class AssetExportService
 {
@@ -12,7 +12,7 @@ class AssetExportService
      */
     public function export($query)
     {
-        $writer = new Writer();
+        $writer = new Writer;
         // Menulis ke php://output, bukan openToBrowser(): header unduhan sudah
         // dikirim oleh response()->streamDownload() di pemanggilnya. Bila writer
         // ikut mengirim header, PHP melempar "headers already sent".
@@ -29,32 +29,29 @@ class AssetExportService
             'Kondisi',
             'Cabang',
             'Pemegang (Current Holder)',
-            'Total Qty',
-            'Qty Tersedia',
-            'Qty Dipinjam/Dipakai',
-            'Qty Dilepas'
+            'Status', 'Tgl Beli', 'No. Faktur', 'Harga Satuan',
         ]);
         $writer->addRow($headerRow);
 
         // Eager load for performance
-        $query->with(['category', 'brand', 'condition', 'branch', 'currentHolder']);
-        
+        $query->with(['product.category', 'product.brand', 'purchaseBatch', 'condition', 'branch', 'currentHolder', 'currentStatus']);
+
         $query->chunk(500, function ($assets) use ($writer) {
             foreach ($assets as $asset) {
                 $row = Row::fromValues([
                     $asset->id,
                     $asset->asset_code,
-                    $asset->category?->name,
-                    $asset->brand?->name,
-                    $asset->model,
+                    $asset->product?->category?->name,
+                    $asset->product?->brand?->name,
+                    $asset->product?->model,
                     $asset->serial_number,
                     $asset->condition?->name,
                     $asset->branch?->name,
                     $asset->currentHolder?->name ?? '-',
-                    $asset->quantity,
-                    $asset->qty_available,
-                    ($asset->qty_out - $asset->qty_in),
-                    $asset->qty_writeoff
+                    $asset->currentStatus?->name,
+                    $asset->purchaseBatch?->purchase_date?->format('Y-m-d'),
+                    $asset->purchaseBatch?->invoice_number,
+                    (float) $asset->purchaseBatch?->unit_price,
                 ]);
                 $writer->addRow($row);
             }

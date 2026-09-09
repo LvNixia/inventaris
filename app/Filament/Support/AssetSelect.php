@@ -8,11 +8,11 @@ use Filament\Forms\Components\Select;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
- * Dropdown pemilih aset yang seragam di seluruh form.
+ * Dropdown pemilih unit aset yang seragam di seluruh form.
  *
  * Nilai yang disimpan tetap `asset_id`; yang berubah hanya label yang dibaca
- * user. Pencarian menjangkau merk, model, serial number, kode aset, dan
- * kategori sekaligus, sehingga user bisa mengetik "thinkpad" maupun "LPT-001".
+ * user. Pencarian menjangkau merek, model, serial number, kode aset, dan
+ * kategori sekaligus, sehingga user bisa mengetik "thinkpad" maupun "LAP-001".
  */
 class AssetSelect
 {
@@ -23,7 +23,7 @@ class AssetSelect
     protected const LIMIT = 50;
 
     /**
-     * @param  Closure|null  $modifyQueryUsing  Penyaring tambahan, misal hanya aset yang masih ada stok.
+     * @param  Closure|null  $modifyQueryUsing  Penyaring tambahan, misal hanya unit yang ada di gudang.
      * @param  Closure|null  $labelUsing  Pengganti label bawaan, menerima satu Asset.
      */
     public static function make(
@@ -45,18 +45,19 @@ class AssetSelect
             ->getSearchResultsUsing(fn (string $search): array => static::query($modifyQueryUsing)
                 ->where(fn (Builder $query) => $query
                     ->where('asset_code', 'like', "%{$search}%")
-                    ->orWhere('model', 'like', "%{$search}%")
                     ->orWhere('serial_number', 'like', "%{$search}%")
-                    ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', "%{$search}%"))
-                    ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', "%{$search}%")))
+                    ->orWhereHas('product', fn (Builder $product) => $product
+                        ->where('model', 'like', "%{$search}%")
+                        ->orWhereHas('brand', fn (Builder $brand) => $brand->where('name', 'like', "%{$search}%"))
+                        ->orWhereHas('category', fn (Builder $category) => $category->where('name', 'like', "%{$search}%"))))
                 ->limit(static::LIMIT)
                 ->get()
                 ->mapWithKeys(fn (Asset $asset): array => [$asset->id => $label($asset)])
                 ->all())
             // Dipakai saat form memuat data lama: nilai tersimpan diterjemahkan
-            // kembali menjadi label, walau aset itu di luar 50 opsi pertama.
+            // kembali menjadi label, walau aset itu di luar opsi yang dimuat.
             ->getOptionLabelUsing(function ($value) use ($label): ?string {
-                $asset = Asset::with(['brand', 'category'])->find($value);
+                $asset = Asset::with(['product.brand', 'product.category'])->find($value);
 
                 return $asset ? $label($asset) : null;
             });
@@ -65,7 +66,7 @@ class AssetSelect
     protected static function query(?Closure $modifyQueryUsing): Builder
     {
         $query = Asset::query()
-            ->with(['brand', 'category'])
+            ->with(['product.brand', 'product.category'])
             ->orderBy('asset_code');
 
         if ($modifyQueryUsing) {

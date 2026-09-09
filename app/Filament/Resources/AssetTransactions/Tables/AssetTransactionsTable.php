@@ -35,10 +35,6 @@ class AssetTransactionsTable
                         'legacy' => 'Data Lama',
                         default => $state,
                     }),
-                TextColumn::make('quantity')
-                    ->label('Jumlah')
-                    ->numeric()
-                    ->sortable(),
                 TextColumn::make('fromEmployee.name')
                     ->label('Dari')
                     ->searchable(),

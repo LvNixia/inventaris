@@ -6,7 +6,10 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
+use App\Models\Asset;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Table;
 
 class AssetsTable
@@ -21,21 +24,27 @@ class AssetsTable
                     ->sortable()
                     ->fontFamily('mono')
                     ->copyable(),
-                TextColumn::make('category.name')
+                TextColumn::make('product.category.name')
                     ->label('Kategori')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('brand.name')
+                TextColumn::make('product.brand.name')
                     ->label('Merk')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('model')
+                TextColumn::make('product.model')
                     ->label('Tipe / Model')
                     ->searchable(),
                 TextColumn::make('serial_number')
                     ->label('S/N')
                     ->searchable()
-                    ->toggleable(),
+                    ->toggleable()
+                    // Unit yang wajib bernomor seri tetapi belum diisi akan
+                    // tertahan saat diserahkan, jadi ditandai sejak di daftar.
+                    ->badge(fn (Asset $record): bool => $record->isMissingRequiredSerial())
+                    ->color(fn (Asset $record): ?string => $record->isMissingRequiredSerial() ? 'warning' : null)
+                    ->formatStateUsing(fn (?string $state, Asset $record): string => $state
+                        ?? ($record->isMissingRequiredSerial() ? 'Belum diisi' : '—')),
                 TextColumn::make('branch.name')
                     ->label('Cabang')
                     ->sortable()
@@ -50,9 +59,9 @@ class AssetsTable
                     ->label('Pemegang')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('qty_available')
-                    ->label('Stok Tersedia')
-                    ->numeric()
+                TextColumn::make('purchaseBatch.purchase_date')
+                    ->label('Tgl Beli')
+                    ->date('d M Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
@@ -67,9 +76,14 @@ class AssetsTable
                     ->label('Cabang')
                     ->relationship('branch', 'name')
                     ->visible(fn () => auth()->user()->role === \App\Enums\Role::AdminPusat),
-                SelectFilter::make('category_id')
+                SelectFilter::make('category')
                     ->label('Kategori')
-                    ->relationship('category', 'name'),
+                    ->relationship('product.category', 'name'),
+                Filter::make('tanpa_serial')
+                    ->label('Nomor seri belum diisi')
+                    ->query(fn (Builder $query) => $query
+                        ->whereNull('serial_number')
+                        ->whereHas('product.category', fn (Builder $c) => $c->where('requires_serial', true))),
                 SelectFilter::make('current_status_id')
                     ->label('Status')
                     ->relationship('currentStatus', 'name'),

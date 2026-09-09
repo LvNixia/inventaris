@@ -63,20 +63,17 @@ class LaporanKepemilikan extends BaseReportPage
                     ->fontFamily('mono')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('category.name')
+                TextColumn::make('product.category.name')
                     ->label('Kategori'),
                 TextColumn::make('barang')
                     ->label('Barang')
-                    ->state(fn (Asset $record): string => trim(($record->brand?->name ?? '') . ' ' . ($record->model ?? '')) ?: '—'),
+                    ->state(fn (Asset $record): string => $record->product?->name ?? '—'),
                 TextColumn::make('serial_number')
                     ->label('Nomor Seri')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('jumlah_dipegang')
-                    ->label('Jumlah Dipegang')
-                    ->state(fn (Asset $record): int => (int) $record->qty_out - (int) $record->qty_in)
-                    ->numeric()
-                    ->alignEnd(),
+                TextColumn::make('currentStatus.name')
+                    ->label('Status'),
                 TextColumn::make('condition.name')
                     ->label('Kondisi'),
                 TextColumn::make('branch.name')
@@ -88,9 +85,9 @@ class LaporanKepemilikan extends BaseReportPage
                     ->label('Cabang')
                     ->relationship('branch', 'name')
                     ->visible(fn (): bool => auth()->user()?->role === \App\Enums\Role::AdminPusat),
-                SelectFilter::make('category_id')
+                SelectFilter::make('category')
                     ->label('Kategori')
-                    ->relationship('category', 'name'),
+                    ->relationship('product.category', 'name'),
                 SelectFilter::make('division')
                     ->label('Divisi')
                     ->relationship('currentHolder.division', 'name'),
@@ -107,7 +104,7 @@ class LaporanKepemilikan extends BaseReportPage
     {
         return [
             'Pemegang', 'NIK', 'Jabatan', 'Divisi', 'Status Karyawan',
-            'Kode Aset', 'Kategori', 'Barang', 'Nomor Seri', 'Jumlah Dipegang', 'Kondisi', 'Cabang',
+            'Kode Aset', 'Kategori', 'Barang', 'Nomor Seri', 'Status', 'Kondisi', 'Cabang',
         ];
     }
 
@@ -121,9 +118,9 @@ class LaporanKepemilikan extends BaseReportPage
             $record->currentHolder?->is_active ? 'Aktif' : 'Nonaktif',
             $record->asset_code,
             $record->category?->name,
-            trim(($record->brand?->name ?? '') . ' ' . ($record->model ?? '')),
+            $record->product?->name,
             $record->serial_number,
-            (int) $record->qty_out - (int) $record->qty_in,
+            $record->currentStatus?->name,
             $record->condition?->name,
             $record->branch?->name,
         ];
@@ -131,7 +128,7 @@ class LaporanKepemilikan extends BaseReportPage
 
     protected function getReportEagerLoads(): array
     {
-        return ['currentHolder.position', 'currentHolder.division', 'category', 'brand', 'condition', 'branch'];
+        return ['currentHolder.position', 'currentHolder.division', 'product.category', 'product.brand', 'condition', 'branch', 'currentStatus'];
     }
 
     public function getReportMeta(): array

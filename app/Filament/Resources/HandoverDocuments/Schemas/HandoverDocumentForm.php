@@ -99,12 +99,7 @@ class HandoverDocumentForm
                                     ->relationship()
                                     ->table([
                                         TableColumn::make('Barang')
-                                            ->width('38%')
-                                            ->verticalAlignment(VerticalAlignment::Center)
-                                            ->markAsRequired(),
-                                        TableColumn::make('Jumlah')
-                                            ->width('12%')
-                                            ->alignment(Alignment::Center)
+                                            ->width('50%')
                                             ->verticalAlignment(VerticalAlignment::Center)
                                             ->markAsRequired(),
                                         TableColumn::make('Pemakai')
@@ -116,28 +111,18 @@ class HandoverDocumentForm
                                     ])
                                     ->schema([
                                         AssetSelect::make(
-                                            // Hanya aset yang masih bersisa stok dan statusnya
-                                            // boleh dipindahtangankan.
-                                            modifyQueryUsing: fn (Builder $query) => $query
-                                                ->where('qty_available', '>', 0)
-                                                ->whereHas('currentStatus', fn (Builder $status) => $status->where('transferable', true)),
-                                            // Stok ikut ditampilkan karena satu baris serah terima
-                                            // bisa mengambil beberapa unit sekaligus.
-                                            labelUsing: fn (Asset $asset): string => $asset->display_name . ' (Stok: ' . $asset->qty_available . ')',
+                                            // Hanya unit yang ada di gudang: tidak sedang dipegang,
+                                            // belum dilepas, dan statusnya boleh dipindahtangankan.
+                                            modifyQueryUsing: fn (Builder $query) => $query->available(),
+                                            // Peringatan serial ditampilkan sejak di dropdown supaya
+                                            // penolakan tidak baru muncul saat surat diterbitkan.
+                                            labelUsing: fn (Asset $asset): string => $asset->display_name
+                                                .($asset->isMissingRequiredSerial() ? '  ⚠ S/N belum diisi' : ''),
                                         )
                                             ->hiddenLabel()
                                             ->required()
                                             ->live()
                                             ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
-                                        TextInput::make('quantity')
-                                            ->hiddenLabel()
-                                            ->numeric()
-                                            ->default(1)
-                                            ->required()
-                                            ->maxValue(function (Get $get) {
-                                                $asset = Asset::find($get('asset_id'));
-                                                return $asset ? $asset->qty_available : 1;
-                                            }),
                                         Select::make('user_employee_id')
                                             ->hiddenLabel()
                                             ->placeholder('Pilih Pemakai')

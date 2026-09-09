@@ -25,26 +25,26 @@ class StatsOverview extends BaseWidget
 
     protected function getStats(): array
     {
-        // Scope to current branch for branch admins
-        $query = Asset::query();
+        // Cakupan cabang mengikuti BranchScope pada model Asset.
+        // Satu baris aset berarti satu unit, jadi semuanya dicacah, bukan dijumlahkan.
+        $totalActive = Asset::query()->active()->count();
 
-        // 1. Total Unit Aktif
-        $totalActive = $query->sum(DB::raw('quantity - qty_writeoff'));
-        
-        // 2. Unit di Gudang
-        $totalAvailable = $query->sum('qty_available');
-        
-        // 3. Unit Dipegang
-        $totalHeld = $query->sum(DB::raw('qty_out - qty_in'));
-        
-        // 4. Nilai Aset Aktif
-        $totalValue = $query->sum(DB::raw('(quantity - qty_writeoff) * unit_price'));
+        $totalAvailable = Asset::query()->available()->count();
 
-        // 5. Belum pernah diserahkan
-        $neverHandedOver = (clone $query)->where('qty_out', 0)->count();
+        $totalHeld = Asset::query()->held()->count();
 
-        // 6. Dilepas / Dijual (Writeoff)
-        $totalWriteoff = $query->sum('qty_writeoff');
+        // Nilai diambil dari harga satuan batch pembeliannya.
+        $totalValue = (float) Asset::query()
+            ->active()
+            ->join('purchase_batches', 'purchase_batches.id', '=', 'assets.purchase_batch_id')
+            ->sum(DB::raw('COALESCE(purchase_batches.unit_price, 0)'));
+
+        $neverHandedOver = Asset::query()
+            ->active()
+            ->whereDoesntHave('assetTransactions', fn ($tx) => $tx->where('stock_direction', 'out'))
+            ->count();
+
+        $totalWriteoff = Asset::query()->retired()->count();
 
         return [
             Stat::make('Total Unit Aktif', number_format($totalActive, 0, ',', '.'))
