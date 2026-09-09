@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\HandoverDocuments\Schemas;
 
+use Illuminate\Database\Eloquent\Builder;
+use App\Filament\Support\AssetSelect;
 use App\Models\Asset;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Repeater;
@@ -113,18 +115,17 @@ class HandoverDocumentForm
                                             ->verticalAlignment(VerticalAlignment::Center),
                                     ])
                                     ->schema([
-                                        Select::make('asset_id')
+                                        AssetSelect::make(
+                                            // Hanya aset yang masih bersisa stok dan statusnya
+                                            // boleh dipindahtangankan.
+                                            modifyQueryUsing: fn (Builder $query) => $query
+                                                ->where('qty_available', '>', 0)
+                                                ->whereHas('currentStatus', fn (Builder $status) => $status->where('transferable', true)),
+                                            // Stok ikut ditampilkan karena satu baris serah terima
+                                            // bisa mengambil beberapa unit sekaligus.
+                                            labelUsing: fn (Asset $asset): string => $asset->display_name . ' (Stok: ' . $asset->qty_available . ')',
+                                        )
                                             ->hiddenLabel()
-                                            ->placeholder('Pilih Aset')
-                                            ->options(function (Get $get) {
-                                                // Normally this would be populated dynamically via a custom API or relationship query
-                                                // to filter assets that are transferable and qty_available > 0.
-                                                return Asset::where('qty_available', '>', 0)
-                                                    ->whereHas('currentStatus', fn ($q) => $q->where('transferable', true))
-                                                    ->get()
-                                                    ->mapWithKeys(fn ($asset) => [$asset->id => "{$asset->asset_code} | {$asset->brand?->name} {$asset->model} | S/N: {$asset->serial_number} (Stok: {$asset->qty_available})"]);
-                                            })
-                                            ->searchable()
                                             ->required()
                                             ->live()
                                             ->disableOptionsWhenSelectedInSiblingRepeaterItems(),

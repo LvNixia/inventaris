@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AssetTransactions\Schemas;
 
+use App\Filament\Support\AssetSelect;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -21,12 +22,7 @@ class AssetTransactionForm
                     ->description('Riwayat transaksi dibuat otomatis oleh sistem. Ubah hanya bila melakukan koreksi data.')
                     ->columns(2)
                     ->schema([
-                        Select::make('asset_id')
-                            ->label('Aset')
-                            ->placeholder('Pilih Aset')
-                            ->relationship('asset', 'asset_code')
-                            ->searchable()
-                            ->preload()
+                        AssetSelect::make('asset_id')
                             ->required(),
                         Select::make('type')
                             ->label('Jenis Transaksi')

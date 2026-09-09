@@ -141,8 +141,8 @@ abstract class BaseReportPage extends Page implements HasTable
         return $table
             ->recordActions([])
             ->toolbarActions([])
-            ->paginated([25, 50, 100, 'all'])
-            ->defaultPaginationPageOption(25);
+            ->paginated([10, 25, 50, 100, 'all'])
+            ->defaultPaginationPageOption(10);
     }
 
     /**

@@ -133,8 +133,8 @@ class AssetForm
                             ->label('Harga Satuan')
                             ->numeric()
                             ->prefix('Rp')
-                            ->mask(RawJs::make('$money($input, \'.\', \',\', 0)'))
-                            ->stripCharacters('.'),
+                            ->mask(RawJs::make('$money($input, \',\', \'.\', 0)'))
+                            ->stripCharacters(['.', ',']),
                         DatePicker::make('warranty_until')
                             ->label('Garansi Sampai')
                             ->native(false)

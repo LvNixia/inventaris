@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AssetService extends Model
 {
@@ -52,5 +53,10 @@ class AssetService extends Model
     public function closedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'closed_by');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(AssetAttachment::class, 'service_id');
     }
 }

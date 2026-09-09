@@ -34,6 +34,30 @@ class Asset extends Model
     public function currentStatus() { return $this->belongsTo(AssetStatus::class, 'current_status_id'); }
     public function splitFromAsset() { return $this->belongsTo(Asset::class, 'split_from_asset_id'); }
     public function assetServices() { return $this->hasMany(AssetService::class); }
+    public function attachments() { return $this->hasMany(AssetAttachment::class); }
+
+    /**
+     * Label identitas aset untuk dropdown dan pencarian.
+     * Contoh: "Lenovo ThinkPad T14 — S/N 5CD123 · IDS-LPT-001".
+     * Aset tidak punya kolom nama; identitasnya gabungan merk, model, dan
+     * serial. Kode tetap disertakan karena banyak unit tanpa serial number.
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        $name = collect([$this->brand?->name, $this->model])
+            ->filter()
+            ->implode(' ');
+
+        if ($name === '') {
+            $name = $this->category?->name ?? 'Aset';
+        }
+
+        if ($this->serial_number) {
+            $name .= ' — S/N ' . $this->serial_number;
+        }
+
+        return $name . ' · ' . $this->asset_code;
+    }
 
     protected static function booted(): void
     {

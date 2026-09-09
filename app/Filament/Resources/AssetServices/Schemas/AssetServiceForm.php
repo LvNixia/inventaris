@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AssetServices\Schemas;
 
+use App\Filament\Support\AssetSelect;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -24,12 +25,7 @@ class AssetServiceForm
                     ->description('Data awal saat aset masuk servis atau upgrade.')
                     ->columns(2)
                     ->schema([
-                        Select::make('asset_id')
-                            ->label('Aset')
-                            ->placeholder('Pilih Aset')
-                            ->relationship('asset', 'asset_code')
-                            ->searchable()
-                            ->preload()
+                        AssetSelect::make('asset_id')
                             ->required(),
                         Select::make('service_kind_id')
                             ->label('Jenis Servis')
@@ -116,14 +112,14 @@ class AssetServiceForm
                             ->label('Biaya Servis')
                             ->numeric()
                             ->prefix('Rp')
-                            ->mask(RawJs::make('$money($input, \'.\', \',\', 0)'))
-                            ->stripCharacters('.'),
+                            ->mask(RawJs::make('$money($input, \',\', \'.\', 0)'))
+                            ->stripCharacters(['.', ',']),
                         TextInput::make('cost_parts')
                             ->label('Biaya Suku Cadang')
                             ->numeric()
                             ->prefix('Rp')
-                            ->mask(RawJs::make('$money($input, \'.\', \',\', 0)'))
-                            ->stripCharacters('.'),
+                            ->mask(RawJs::make('$money($input, \',\', \'.\', 0)'))
+                            ->stripCharacters(['.', ',']),
                         DatePicker::make('service_warranty_until')
                             ->label('Garansi Servis Sampai')
                             ->native(false)
