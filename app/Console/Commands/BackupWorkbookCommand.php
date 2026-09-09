@@ -7,15 +7,16 @@ use App\Models\AssetTransaction;
 use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Employee;
-use Illuminate\Console\Command;
-use OpenSpout\Writer\XLSX\Writer;
-use OpenSpout\Common\Entity\Row;
-use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Storage;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer;
 
 class BackupWorkbookCommand extends Command
 {
     protected $signature = 'backup:workbook';
+
     protected $description = 'Backup data into a workbook (Excel)';
 
     public function handle()
@@ -24,21 +25,26 @@ class BackupWorkbookCommand extends Command
 
         $date = Carbon::now()->format('Ymd_His');
         $filename = "workbook_{$date}.xlsx";
-        $dir = 'private/backups';
 
-        if (!Storage::exists($dir)) {
+        // Disk local berakar di storage/app/private, jadi jalur disknya cukup
+        // "backups". Sebelumnya pemeriksaan direktori dan jalur berkas menunjuk
+        // lokasi berbeda, sehingga foldernya tidak pernah terbuat di tempat
+        // berkas ditulis dan perintah ini selalu gagal.
+        $dir = 'backups';
+
+        if (! Storage::exists($dir)) {
             Storage::makeDirectory($dir);
         }
 
-        $path = storage_path("app/{$dir}/{$filename}");
+        $path = Storage::path("{$dir}/{$filename}");
 
-        $writer = new Writer();
+        $writer = new Writer;
         $writer->openToFile($path);
 
         // Sheet 1: Master
         $sheetMaster = $writer->getCurrentSheet();
         $sheetMaster->setName('Master');
-        
+
         $writer->addRow(Row::fromValues(['--- CABANG ---']));
         foreach (Branch::all() as $branch) {
             $writer->addRow(Row::fromValues([$branch->id, $branch->code, $branch->name]));
@@ -58,7 +64,7 @@ class BackupWorkbookCommand extends Command
         $sheetAsset = $writer->addNewSheetAndMakeItCurrent();
         $sheetAsset->setName('Aset');
         $writer->addRow(Row::fromValues([
-            'ID', 'Kode', 'Kategori', 'Merk', 'Model', 'SN', 'Kondisi', 'Cabang', 'Status', 'Tgl Beli', 'Harga Satuan'
+            'ID', 'Kode', 'Kategori', 'Merk', 'Model', 'SN', 'Kondisi', 'Cabang', 'Status', 'Tgl Beli', 'Harga Satuan',
         ]));
 
         Asset::with(['product.category', 'product.brand', 'purchaseBatch', 'condition', 'branch', 'currentStatus'])->chunk(500, function ($assets) use ($writer) {
@@ -74,7 +80,7 @@ class BackupWorkbookCommand extends Command
                     $asset->branch?->name,
                     $asset->currentStatus?->name,
                     $asset->purchaseBatch?->purchase_date?->format('Y-m-d'),
-                    (float) $asset->purchaseBatch?->unit_price
+                    (float) $asset->purchaseBatch?->unit_price,
                 ]));
             }
         });
@@ -83,7 +89,7 @@ class BackupWorkbookCommand extends Command
         $sheetHistory = $writer->addNewSheetAndMakeItCurrent();
         $sheetHistory->setName('Riwayat');
         $writer->addRow(Row::fromValues([
-            'ID', 'Tanggal', 'Aset', 'Tipe', 'Arah', 'Surat'
+            'ID', 'Tanggal', 'Aset', 'Tipe', 'Arah', 'Surat',
         ]));
 
         AssetTransaction::with(['asset', 'handoverDocument'])->chunk(500, function ($txs) use ($writer) {
@@ -94,7 +100,7 @@ class BackupWorkbookCommand extends Command
                     $tx->asset?->asset_code,
                     $tx->type,
                     $tx->stock_direction,
-                    $tx->handoverDocument?->document_number
+                    $tx->handoverDocument?->document_number,
                 ]));
             }
         });

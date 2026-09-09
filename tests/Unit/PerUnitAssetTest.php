@@ -4,20 +4,13 @@ namespace Tests\Unit;
 
 use App\Models\Asset;
 use App\Models\Branch;
-use App\Models\Brand;
-use App\Models\Category;
-use App\Models\Employee;
-use App\Models\HandoverDocument;
 use App\Models\Product;
 use App\Models\ServiceKind;
-use App\Models\User;
-use App\Services\AssetService;
 use App\Services\BranchTransferService;
 use App\Services\HandoverService;
 use App\Services\ServiceService;
-use Database\Seeders\MasterSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
+use Tests\Concerns\MembuatDataAset;
 use Tests\TestCase;
 
 /**
@@ -26,48 +19,13 @@ use Tests\TestCase;
  */
 class PerUnitAssetTest extends TestCase
 {
-    use RefreshDatabase;
+    use MembuatDataAset, RefreshDatabase;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->seed(MasterSeeder::class);
-
-        $admin = new User;
-        $admin->name = 'Admin Uji';
-        $admin->email = 'uji@contoh.test';
-        $admin->password = 'rahasia-uji';
-        $admin->role = 'admin_pusat';
-        $admin->is_active = true;
-        $admin->save();
-
-        Auth::login($admin);
-    }
-
-    protected function barang(string $kategoriPrefix = 'ACC', string $model = 'MK270'): Product
-    {
-        return Product::create([
-            'category_id' => Category::where('code_prefix', $kategoriPrefix)->value('id'),
-            'brand_id' => Brand::firstOrCreate(['name' => 'Logitech'], ['is_active' => true])->id,
-            'model' => $model,
-            'is_active' => true,
-        ]);
-    }
-
-    /**
-     * @param  array<int, array<string, mixed>>|null  $units
-     */
-    protected function beli(Product $product, int $jumlah = 1, ?array $units = null)
-    {
-        return app(AssetService::class)->receivePurchase([
-            'product_id' => $product->id,
-            'branch_id' => Branch::where('code', 'JKT')->value('id'),
-            'invoice_number' => 'INV/UJI/'.uniqid(),
-            'purchase_date' => now()->subMonth(),
-            'unit_price' => 350000,
-            'warranty_months' => 12,
-        ], $units ?? array_fill(0, $jumlah, ['serial_number' => null]));
+        $this->siapkanDataAcuan();
     }
 
     public function test_pembelian_membuat_satu_baris_aset_per_unit(): void
@@ -163,6 +121,21 @@ class PerUnitAssetTest extends TestCase
         ]);
     }
 
+    public function test_serial_wajib_menahan_barang_ditinggal_di_servis(): void
+    {
+        $unit = $this->beli($this->barang('LAP', 'ProBook 440'), 1)->first();
+
+        $this->expectExceptionMessage('Nomor seri');
+
+        app(ServiceService::class)->open($unit, [
+            'service_kind_id' => ServiceKind::where('code', 'perbaikan')->value('id'),
+            'performed_by' => 'vendor',
+            'item_left' => true,
+            'started_at' => now(),
+            'complaint' => 'Layar berkedip.',
+        ]);
+    }
+
     public function test_barang_tanpa_serial_tidak_ikut_dipagari(): void
     {
         // Aksesoris tidak wajib bernomor seri, jadi boleh diserahkan apa adanya.
@@ -175,39 +148,23 @@ class PerUnitAssetTest extends TestCase
         $this->assertNotNull($unit->refresh()->current_holder_id);
     }
 
-    protected function karyawan(): Employee
+    public function test_kirim_antar_cabang_memindahkan_unit_yang_sama(): void
     {
-        return Employee::create([
-            'name' => 'Penerima Uji',
-            'nik' => 'UJI-'.uniqid(),
-            'branch_id' => Branch::where('code', 'JKT')->value('id'),
-            'is_active' => true,
-        ]);
-    }
+        $unit = $this->beli($this->barang(), 1)->first();
+        $kodeAwal = $unit->asset_code;
 
-    protected function draf(Asset $unit, Employee $penerima): HandoverDocument
-    {
-        $penyerah = Employee::create([
-            'name' => 'Penyerah Uji',
-            'nik' => 'UJI-'.uniqid(),
-            'branch_id' => Branch::where('code', 'JKT')->value('id'),
-            'is_active' => true,
+        app(BranchTransferService::class)->send($unit, [
+            'to_branch_id' => $this->cabang('BTM')->id,
+            'notes' => 'Resi uji.',
         ]);
 
-        $doc = HandoverDocument::create([
-            'document_date' => now(),
-            'branch_id' => Branch::where('code', 'JKT')->value('id'),
-            'first_party_id' => $penyerah->id,
-            'second_party_id' => $penerima->id,
-            'status' => 'draft',
-            'created_by' => auth()->id(),
-        ]);
+        $unit->refresh();
 
-        $doc->items()->create([
-            'asset_id' => $unit->id,
-            'user_employee_id' => $penerima->id,
-        ]);
-
-        return $doc;
+        // Tidak ada lagi pemecahan baris: kode unitnya tetap, sehingga riwayat
+        // servis dan lampirannya ikut terbawa ke cabang tujuan.
+        $this->assertSame($kodeAwal, $unit->asset_code);
+        $this->assertSame($this->cabang('BTM')->id, $unit->branch_id);
+        $this->assertSame('in_transit', $unit->currentStatus->code);
+        $this->assertSame(1, Asset::withoutGlobalScopes()->count());
     }
 }
