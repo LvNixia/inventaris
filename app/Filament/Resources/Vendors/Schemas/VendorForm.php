@@ -42,6 +42,20 @@ class VendorForm
                             ->label('Telepon')
                             ->placeholder('Contoh: 0812-3456-7890')
                             ->tel(),
+                        TextInput::make('email')
+                            ->label('Email')
+                            ->email()
+                            ->placeholder('Contoh: sales@vendor.co.id'),
+                        TextInput::make('npwp')
+                            ->label('NPWP')
+                            ->placeholder('Contoh: 01.234.567.8-901.000'),
+                        Select::make('payment_term_id')
+                            ->label('Syarat Pembayaran')
+                            ->placeholder('Pilih Syarat Pembayaran')
+                            ->relationship('paymentTerm', 'name', fn ($query) => $query->where('is_active', true))
+                            ->preload()
+                            ->helperText('Dipakai sebagai bawaan saat membuat pesanan pembelian; masih bisa diubah per PO.')
+                            ->columnSpanFull(),
                         Toggle::make('is_active')
                             ->label('Aktif')
                             ->helperText('Nonaktifkan bila vendor tidak dipakai lagi.')

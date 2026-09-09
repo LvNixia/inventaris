@@ -213,15 +213,21 @@ return new class extends Migration
             $table->index('handover_document_id');
         });
 
+        /*
+         * Penomoran dokumen berjalan per cabang per bulan, dan dipisah per seri
+         * supaya nomor surat serah terima tidak berebut urutan dengan nomor
+         * dokumen pengadaan.
+         */
         Schema::create('document_counters', function (Blueprint $table) {
             $table->id();
             $table->foreignId('branch_id')->constrained('branches');
+            $table->string('series', 20)->default('handover');
             $table->integer('year');
             $table->integer('month');
             $table->integer('last_no')->default(0);
             $table->timestamps();
 
-            $table->unique(['branch_id', 'year', 'month']);
+            $table->unique(['branch_id', 'series', 'year', 'month']);
         });
 
         Schema::create('asset_attachments', function (Blueprint $table) {

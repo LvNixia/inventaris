@@ -26,6 +26,11 @@ class PurchaseBatch extends Model
         return $this->belongsTo(Product::class);
     }
 
+    public function goodsReceipt(): BelongsTo
+    {
+        return $this->belongsTo(GoodsReceipt::class);
+    }
+
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

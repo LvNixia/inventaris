@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Asset;
 use App\Models\AssetService as AssetServiceModel;
+use App\Models\PurchaseInvoice;
 
 /**
  * Menelusuri kejanggalan yang tidak bisa dicegah oleh validasi formulir.
@@ -27,7 +28,53 @@ class DataCheckService
             $this->unitTanpaStatus(),
             $this->servisBerjalanPadaUnitDilepas(),
             $this->unitTanpaBatchPembelian(),
+            $this->fakturDenganTerbayarTidakCocok(),
+            $this->fakturLunasTapiKurangBayar(),
         );
+    }
+
+    /**
+     * `paid_amount` disimpan agar daftar hutang tidak menjumlah ulang tiap
+     * tampil. Konsekuensinya nilai itu bisa menyimpang bila ada penulisan
+     * langsung ke basis data di luar alur aplikasi, jadi diawasi di sini.
+     */
+    protected function fakturDenganTerbayarTidakCocok(): array
+    {
+        return PurchaseInvoice::query()
+            ->with('vendor')
+            ->get()
+            ->filter(function (PurchaseInvoice $invoice): bool {
+                $alokasi = (float) $invoice->allocations()
+                    ->whereHas('vendorPayment', fn ($q) => $q->withoutGlobalScopes()->whereNull('cancelled_at'))
+                    ->sum('amount');
+
+                return abs($alokasi - (float) $invoice->paid_amount) > 0.5;
+            })
+            ->map(fn (PurchaseInvoice $invoice): array => [
+                'type' => 'Faktur',
+                'id' => $invoice->id,
+                'reference' => $invoice->invoice_number.' · '.$invoice->vendor?->name,
+                'issue' => 'Nilai terbayar pada faktur tidak sama dengan jumlah alokasi pembayarannya.',
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function fakturLunasTapiKurangBayar(): array
+    {
+        return PurchaseInvoice::query()
+            ->with('vendor')
+            ->where('status', 'paid')
+            ->whereColumn('paid_amount', '<', 'total_amount')
+            ->get()
+            ->map(fn (PurchaseInvoice $invoice): array => [
+                'type' => 'Faktur',
+                'id' => $invoice->id,
+                'reference' => $invoice->invoice_number.' · '.$invoice->vendor?->name,
+                'issue' => 'Berstatus lunas padahal nilai terbayarnya kurang dari total tagihan.',
+            ])
+            ->values()
+            ->all();
     }
 
     /**

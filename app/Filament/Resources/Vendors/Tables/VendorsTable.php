@@ -28,6 +28,18 @@ class VendorsTable
                 TextColumn::make('phone')
                     ->label('Telepon')
                     ->searchable(),
+                TextColumn::make('paymentTerm.name')
+                    ->label('Syarat Bayar')
+                    ->badge()
+                    ->toggleable(),
+                TextColumn::make('npwp')
+                    ->label('NPWP')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('email')
+                    ->label('Email')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 IconColumn::make('is_active')
                     ->label('Aktif')
                     ->boolean(),

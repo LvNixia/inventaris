@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\Category;
 use App\Models\Condition;
 use App\Models\DisposalReason;
+use App\Models\PaymentTerm;
 use App\Models\ServiceKind;
 use App\Models\ServiceResult;
 use Illuminate\Database\Seeder;
@@ -101,6 +102,23 @@ class MasterSeeder extends Seeder
 
         foreach ($attachments as $att) {
             AttachmentType::updateOrCreate(['code' => $att['code']], array_merge($att, ['is_system' => true]));
+        }
+
+        // Syarat pembayaran vendor; `days` menentukan jarak jatuh tempo faktur.
+        $terms = [
+            ['code' => 'cod', 'name' => 'Bayar di Tempat', 'days' => 0],
+            ['code' => 'cbd', 'name' => 'Bayar di Muka', 'days' => 0],
+            ['code' => 'net7', 'name' => 'Net 7 Hari', 'days' => 7],
+            ['code' => 'net14', 'name' => 'Net 14 Hari', 'days' => 14],
+            ['code' => 'net30', 'name' => 'Net 30 Hari', 'days' => 30],
+            ['code' => 'net45', 'name' => 'Net 45 Hari', 'days' => 45],
+        ];
+
+        foreach ($terms as $idx => $term) {
+            PaymentTerm::updateOrCreate(['code' => $term['code']], array_merge($term, [
+                'is_system' => true,
+                'sort_order' => $idx + 1,
+            ]));
         }
 
         // Data awal untuk testing/development
