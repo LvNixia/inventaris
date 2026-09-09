@@ -8,10 +8,8 @@ use App\Filament\Resources\AssetTransactions\Pages\ListAssetTransactions;
 use App\Filament\Resources\AssetTransactions\Schemas\AssetTransactionForm;
 use App\Filament\Resources\AssetTransactions\Tables\AssetTransactionsTable;
 use App\Models\AssetTransaction;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class AssetTransactionResource extends Resource
@@ -19,9 +17,13 @@ class AssetTransactionResource extends Resource
     protected static ?string $model = AssetTransaction::class;
 
     protected static ?string $modelLabel = 'Riwayat Transaksi';
+
     protected static ?string $pluralModelLabel = 'Riwayat Transaksi';
+
     protected static \UnitEnum|string|null $navigationGroup = 'Manajemen Aset';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clock';
+
     protected static ?int $navigationSort = 3;
 
     public static function form(Schema $schema): Schema

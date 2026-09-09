@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Reports;
 
+use App\Enums\Role;
 use App\Models\Asset;
 use App\Models\Branch;
 use App\Models\Category;
@@ -114,7 +115,7 @@ class LaporanPosisiAset extends BaseReportPage
                 SelectFilter::make('branch_id')
                     ->label('Cabang')
                     ->relationship('branch', 'name')
-                    ->visible(fn (): bool => auth()->user()?->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn (): bool => auth()->user()?->role === Role::AdminPusat),
                 SelectFilter::make('category')
                     ->label('Kategori')
                     ->relationship('product.category', 'name'),
@@ -229,8 +230,8 @@ class LaporanPosisiAset extends BaseReportPage
         $bulan = $asset->purchase_date->diffInMonths(now());
 
         return match (true) {
-            $bulan < 12 => $bulan . ' bln',
-            default => intdiv($bulan, 12) . ' th ' . ($bulan % 12) . ' bln',
+            $bulan < 12 => $bulan.' bln',
+            default => intdiv($bulan, 12).' th '.($bulan % 12).' bln',
         };
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Reports;
 
+use App\Enums\Role;
 use App\Models\Asset;
 use App\Models\Branch;
 use Filament\Tables\Columns\IconColumn;
@@ -84,7 +85,7 @@ class LaporanKepemilikan extends BaseReportPage
                 SelectFilter::make('branch_id')
                     ->label('Cabang')
                     ->relationship('branch', 'name')
-                    ->visible(fn (): bool => auth()->user()?->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn (): bool => auth()->user()?->role === Role::AdminPusat),
                 SelectFilter::make('category')
                     ->label('Kategori')
                     ->relationship('product.category', 'name'),

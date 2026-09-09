@@ -59,7 +59,7 @@ class BranchTransferService
             // Cabang tujuan mengonfirmasi penerimaan unit tertentu, jadi nomor
             // serinya harus sudah ada sebelum barang berangkat.
             if ($asset->isMissingRequiredSerial()) {
-                throw new Exception("Nomor seri aset {$asset->asset_code} belum diisi; lengkapi dulu sebelum dikirim.");
+                throw new Exception("{$asset->product?->serialLabel()} aset {$asset->asset_code} belum diisi; lengkapi dulu sebelum dikirim.");
             }
 
             $inTransitStatus = AssetStatus::where('code', 'in_transit')->firstOrFail();

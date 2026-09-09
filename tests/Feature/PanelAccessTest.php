@@ -64,6 +64,7 @@ class PanelAccessTest extends TestCase
             'laporan servis' => ['/admin/laporan-servis'],
             'laporan mutasi' => ['/admin/laporan-mutasi'],
             'pemeriksaan data' => ['/admin/data-check'],
+            'impor aset' => ['/admin/impor-aset'],
         ];
     }
 

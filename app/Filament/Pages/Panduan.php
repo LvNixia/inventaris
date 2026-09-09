@@ -2,7 +2,10 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Asset;
+use App\Models\HandoverDocument;
 use Filament\Pages\Page;
+use Illuminate\Contracts\Support\Htmlable;
 use Livewire\Attributes\Computed;
 
 class Panduan extends Page
@@ -21,7 +24,7 @@ class Panduan extends Page
         return 'Panduan Penggunaan';
     }
 
-    public function getTitle(): string|\Illuminate\Contracts\Support\Htmlable
+    public function getTitle(): string|Htmlable
     {
         return 'Panduan Penggunaan';
     }
@@ -46,8 +49,8 @@ class Panduan extends Page
     public function contoh(): array
     {
         return [
-            'kodeAset' => \App\Models\Asset::withoutGlobalScopes()->value('asset_code') ?? 'IDS-LAP-001',
-            'nomorSurat' => \App\Models\HandoverDocument::withoutGlobalScopes()
+            'kodeAset' => Asset::withoutGlobalScopes()->value('asset_code') ?? 'IDS-LAP-001',
+            'nomorSurat' => HandoverDocument::withoutGlobalScopes()
                 ->whereNotNull('document_number')
                 ->value('document_number') ?? 'IDS-IT/JKT/2026/03/01',
         ];

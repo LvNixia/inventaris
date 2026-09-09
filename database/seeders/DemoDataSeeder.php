@@ -300,9 +300,20 @@ class DemoDataSeeder extends Seeder
 
             for ($i = 1; $i <= $jumlah; $i++) {
                 $units[] = [
-                    'serial_number' => $perluSeri
-                        ? sprintf('%s-%03d-%04d', strtoupper($kodeKategori), $urut, $i * 137 + $urut)
-                        : null,
+                    // Lisensi dilacak lewat kunci produknya, memakai kolom yang
+                    // sama dengan nomor seri perangkat.
+                    'serial_number' => match (true) {
+                        $kodeKategori === 'LSS' => sprintf(
+                            '%s-%s-%s-%s-%s',
+                            strtoupper(substr(md5($urut.'a'.$i), 0, 5)),
+                            strtoupper(substr(md5($urut.'b'.$i), 0, 5)),
+                            strtoupper(substr(md5($urut.'c'.$i), 0, 5)),
+                            strtoupper(substr(md5($urut.'d'.$i), 0, 5)),
+                            strtoupper(substr(md5($urut.'e'.$i), 0, 5)),
+                        ),
+                        $perluSeri => sprintf('%s-%03d-%04d', strtoupper($kodeKategori), $urut, $i * 137 + $urut),
+                        default => null,
+                    },
                     'imei_1' => $kodeKategori === 'SMP'
                         ? '35'.str_pad((string) $urut, 6, '0', STR_PAD_LEFT).str_pad((string) ($i * 4321), 7, '0', STR_PAD_LEFT)
                         : null,

@@ -10,7 +10,6 @@ class EditAssetService extends EditRecord
 {
     protected static string $resource = AssetServiceResource::class;
 
-
     protected function getHeaderActions(): array
     {
         return [

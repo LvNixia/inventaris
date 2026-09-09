@@ -8,10 +8,8 @@ use App\Filament\Resources\Brands\Pages\ListBrands;
 use App\Filament\Resources\Brands\Schemas\BrandForm;
 use App\Filament\Resources\Brands\Tables\BrandsTable;
 use App\Models\Brand;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class BrandResource extends Resource
@@ -19,10 +17,15 @@ class BrandResource extends Resource
     protected static ?string $model = Brand::class;
 
     protected static ?string $modelLabel = 'Merek';
+
     protected static ?string $pluralModelLabel = 'Merek';
+
     protected static \UnitEnum|string|null $navigationGroup = 'Referensi';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-swatch';
+
     protected static ?int $navigationSort = 2;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema

@@ -62,11 +62,11 @@ class StatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-users')
                 ->color('info'),
 
-            Stat::make('Total Nilai Aset Aktif', 'Rp ' . number_format($totalValue, 0, ',', '.'))
+            Stat::make('Total Nilai Aset Aktif', 'Rp '.number_format($totalValue, 0, ',', '.'))
                 ->description('Estimasi nilai berdasarkan harga satuan x stok aktif')
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('success'),
-                
+
             Stat::make('Belum Pernah Diserahkan', number_format($neverHandedOver, 0, ',', '.'))
                 ->description('Baris aset yang tidak memiliki riwayat keluar')
                 ->descriptionIcon('heroicon-m-exclamation-circle')

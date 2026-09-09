@@ -260,11 +260,30 @@
                 <li>Saat disimpan, unitnya dibuat sekaligus dengan kode masing-masing, contohnya <span class="panduan-kode">{{ $contoh['kodeAset'] }}</span>.</li>
             </ul>
 
+            <h3>Memasukkan data aset yang sudah berjalan</h3>
+
+            <p>Untuk inventaris lama yang masih tercatat di spreadsheet, pakai <strong>Manajemen Aset → Impor Aset</strong> daripada mengetik ulang satu per satu.</p>
+
+            <ul>
+                <li>Klik <strong>Unduh Berkas Contoh</strong> untuk melihat kolom yang dibaca, lalu isi datamu di sana.</li>
+                <li>Unggah berkasnya, klik <strong>Periksa Berkas</strong>. Tidak ada data yang ditulis pada tahap ini.</li>
+                <li>Hasil pemeriksaan menunjukkan berapa baris siap masuk, berapa yang bermasalah, dan apa masalahnya per baris.</li>
+                <li>Bila sudah cocok, klik <strong>Jalankan Impor</strong>. Baris bermasalah dilewati, sisanya tetap masuk.</li>
+            </ul>
+
+            <p>Barang, vendor, dan batch pembelian dibuat otomatis bila belum ada. Baris dengan nomor faktur, tanggal, dan harga yang sama dianggap satu pembelian, jadi satu faktur berisi sepuluh unit tidak melahirkan sepuluh catatan pembelian.</p>
+
+            <p>Keliru impor? Buka bagian <strong>Riwayat impor</strong> di halaman yang sama lalu klik <strong>Batalkan</strong>. Pembatalan hanya berlaku selama unit-unitnya belum diserahkan, diservis, atau dilepas — setelah itu riwayatnya tidak bisa dibalik.</p>
+
+            <p>Menu ini hanya terbuka untuk Admin Pusat karena impor membuat barang dan pembelian sekaligus.</p>
+
             <h3>Nomor seri: boleh menyusul, tetapi ada batasnya</h3>
 
             <p>Serial boleh dikosongkan saat barang diterima — penerimaan sering terburu-buru dan memaksa mengisi di muka biasanya berakhir dengan orang mengetik tanda hubung.</p>
 
             <p>Tetapi untuk kategori yang mewajibkan serial, unit itu <strong>tidak bisa diserahkan, dikirim antar cabang, atau ditinggal di tempat servis</strong> sebelum serialnya terisi. Nomor itulah yang tercetak di surat serah terima dan tertulis di nota vendor.</p>
+
+            <p>Lisensi ikut aturan yang sama, hanya sebutannya berbeda: kolomnya bernama <strong>Kunci Lisensi</strong> dan diisi kunci produk. Satu kunci berarti satu unit, jadi sepuluh lisensi berarti sepuluh baris dengan kunci masing-masing — sehingga ketahuan kunci mana yang dipakai siapa.</p>
 
             <p>Unit yang serialnya belum diisi ditandai <strong>Belum diisi</strong> pada kolom S/N di daftar aset, dan bisa disisir sekaligus lewat penyaring <strong>Nomor seri belum diisi</strong>. Halaman <strong>Pemeriksaan Data</strong> juga mendaftarnya.</p>
 

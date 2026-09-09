@@ -52,7 +52,7 @@ class AssetForm
                             ->dehydrated(),
 
                         TextInput::make('serial_number')
-                            ->label('Nomor Seri')
+                            ->label(fn (Get $get): string => Product::with('category')->find($get('product_id'))?->serialLabel() ?? 'Nomor Seri')
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
                             ->helperText(function (Get $get): ?string {

@@ -2,10 +2,17 @@
 
 namespace App\Filament\Resources\Employees\Tables;
 
+use App\Models\Asset;
+use App\Models\Condition;
+use App\Services\EmployeeOffboarding;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -52,35 +59,35 @@ class EmployeesTable
                     ->requiresConfirmation()
                     ->action(function ($record) {
                         try {
-                            app(\App\Services\EmployeeOffboarding::class)->disable($record);
-                            \Filament\Notifications\Notification::make()->success()->title('Karyawan dinonaktifkan')->send();
+                            app(EmployeeOffboarding::class)->disable($record);
+                            Notification::make()->success()->title('Karyawan dinonaktifkan')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
                         }
                     }),
                 Action::make('tarik_semua')
                     ->label('Tarik Semua Aset')
                     ->color('warning')
                     ->icon('heroicon-o-arrow-uturn-left')
-                    ->visible(fn ($record) => $record->is_active && \App\Models\Asset::where('current_holder_id', $record->id)->exists())
+                    ->visible(fn ($record) => $record->is_active && Asset::where('current_holder_id', $record->id)->exists())
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('transaction_date')
+                        DatePicker::make('transaction_date')
                             ->label('Tanggal Penarikan')
                             ->default(now())
                             ->required(),
-                        \Filament\Forms\Components\Select::make('condition_id')
+                        Select::make('condition_id')
                             ->label('Kondisi')
-                            ->options(\App\Models\Condition::pluck('name', 'id'))
+                            ->options(Condition::pluck('name', 'id'))
                             ->required(),
-                        \Filament\Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('Catatan'),
                     ])
                     ->action(function ($record, array $data) {
                         try {
-                            app(\App\Services\EmployeeOffboarding::class)->returnAllAssets($record, $data);
-                            \Filament\Notifications\Notification::make()->success()->title('Semua aset ditarik')->send();
+                            app(EmployeeOffboarding::class)->returnAllAssets($record, $data);
+                            Notification::make()->success()->title('Semua aset ditarik')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
                         }
                     }),
             ])

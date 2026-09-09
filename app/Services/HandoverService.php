@@ -74,7 +74,7 @@ class HandoverService
                 // terisi sebelum unitnya diserahkan: nomor itu yang tercetak di
                 // surat dan menjadi bukti unit mana yang berpindah tangan.
                 if ($asset->isMissingRequiredSerial()) {
-                    $errors[] = "Nomor seri aset {$asset->asset_code} ({$asset->product?->name}) belum diisi; lengkapi dulu sebelum diserahkan.";
+                    $errors[] = "{$asset->product?->serialLabel()} aset {$asset->asset_code} ({$asset->product?->name}) belum diisi; lengkapi dulu sebelum diserahkan.";
                 }
             }
 

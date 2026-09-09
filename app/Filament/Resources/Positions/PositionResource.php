@@ -8,10 +8,8 @@ use App\Filament\Resources\Positions\Pages\ListPositions;
 use App\Filament\Resources\Positions\Schemas\PositionForm;
 use App\Filament\Resources\Positions\Tables\PositionsTable;
 use App\Models\Position;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class PositionResource extends Resource
@@ -19,10 +17,15 @@ class PositionResource extends Resource
     protected static ?string $model = Position::class;
 
     protected static ?string $modelLabel = 'Jabatan';
+
     protected static ?string $pluralModelLabel = 'Jabatan';
+
     protected static \UnitEnum|string|null $navigationGroup = 'Organisasi';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-briefcase';
+
     protected static ?int $navigationSort = 3;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema

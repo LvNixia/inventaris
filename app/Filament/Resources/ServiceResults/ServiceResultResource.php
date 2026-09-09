@@ -8,10 +8,8 @@ use App\Filament\Resources\ServiceResults\Pages\ListServiceResults;
 use App\Filament\Resources\ServiceResults\Schemas\ServiceResultForm;
 use App\Filament\Resources\ServiceResults\Tables\ServiceResultsTable;
 use App\Models\ServiceResult;
-use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 
 class ServiceResultResource extends Resource
@@ -19,10 +17,15 @@ class ServiceResultResource extends Resource
     protected static ?string $model = ServiceResult::class;
 
     protected static ?string $modelLabel = 'Hasil Servis';
+
     protected static ?string $pluralModelLabel = 'Hasil Servis';
+
     protected static \UnitEnum|string|null $navigationGroup = 'Referensi';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-check-badge';
+
     protected static ?int $navigationSort = 6;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     public static function form(Schema $schema): Schema

@@ -2,10 +2,14 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\Role;
+use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Livewire\Mechanisms\HandleRequests\EndpointResolver;
 
 /**
  * Diagnosa kegagalan login, terutama untuk perbedaan antara lingkungan lokal
@@ -34,13 +38,13 @@ class CekLogin extends Command
 
         $this->periksa('APP_URL tanpa garis miring di akhir', $appUrl === rtrim($appUrl, '/'),
             'APP_URL diakhiri "/" sehingga alamat yang dibentuk aplikasi menjadi ganda '
-            . '(contoh: //livewire/update). Tombol bisa tidak memberi reaksi apa pun. '
-            . 'Hapus garis miring terakhir di .env, lalu jalankan php artisan config:clear.');
+            .'(contoh: //livewire/update). Tombol bisa tidak memberi reaksi apa pun. '
+            .'Hapus garis miring terakhir di .env, lalu jalankan php artisan config:clear.');
 
         $this->periksa('APP_DEBUG mati di produksi',
             ! (config('app.env') === 'production' && config('app.debug')),
             'APP_DEBUG=true di server produksi membocorkan jejak error dan isi konfigurasi ke pengunjung. '
-            . 'Setel APP_DEBUG=false setelah selesai memeriksa masalah ini.');
+            .'Setel APP_DEBUG=false setelah selesai memeriksa masalah ini.');
 
         $configDicache = file_exists(base_path('bootstrap/cache/config.php'));
         $this->baris('Config di-cache', $configDicache ? 'ya' : 'tidak');
@@ -61,7 +65,7 @@ class CekLogin extends Command
 
         $this->periksa('Cookie aman cocok dengan skema URL', ! ($cookieAman && ! $urlHttps),
             'SESSION_SECURE_COOKIE bernilai true tetapi situs diakses lewat http. Cookie sesi tidak akan '
-            . 'tersimpan di browser, sehingga login selalu kembali ke halaman login. Setel false, atau layani situs lewat https.');
+            .'tersimpan di browser, sehingga login selalu kembali ke halaman login. Setel false, atau layani situs lewat https.');
 
         if (filled(config('session.domain'))) {
             $hostUrl = (string) parse_url((string) config('app.url'), PHP_URL_HOST);
@@ -84,7 +88,7 @@ class CekLogin extends Command
 
             if ($ada) {
                 try {
-                    $kunci = 'cek-login-' . Str::random(8);
+                    $kunci = 'cek-login-'.Str::random(8);
 
                     DB::table($tabel)->insert([
                         'id' => $kunci,
@@ -96,7 +100,7 @@ class CekLogin extends Command
 
                     $this->periksa('Bisa menulis ke tabel sesi', true, '');
                 } catch (\Throwable $e) {
-                    $this->periksa('Bisa menulis ke tabel sesi', false, 'Gagal menulis: ' . $e->getMessage());
+                    $this->periksa('Bisa menulis ke tabel sesi', false, 'Gagal menulis: '.$e->getMessage());
                 }
             }
         } elseif ($driver === 'file') {
@@ -106,12 +110,11 @@ class CekLogin extends Command
                 'Perbaiki izin: chmod -R 775 storage lalu samakan pemiliknya dengan pengguna web server.');
         }
 
-
         $this->bagian('Uji simpan-baca sesi');
 
         try {
             $store = app('session')->driver();
-            $penanda = 'cek-' . Str::random(10);
+            $penanda = 'cek-'.Str::random(10);
 
             $store->put('cek_login_penanda', $penanda);
             $store->save();
@@ -127,16 +130,16 @@ class CekLogin extends Command
 
             $this->periksa('Sesi bertahan antar request', $kembali === $penanda,
                 'Nilai yang disimpan tidak terbaca kembali. Inilah sebabnya login selalu balik ke halaman login: '
-                . 'aplikasi menganggap pengguna belum masuk. Periksa driver sesi, tabel sessions, dan izin folder di atas.');
+                .'aplikasi menganggap pengguna belum masuk. Periksa driver sesi, tabel sessions, dan izin folder di atas.');
 
             $store2->forget('cek_login_penanda');
             $store2->save();
         } catch (\Throwable $e) {
-            $this->periksa('Sesi bertahan antar request', false, 'Gagal menguji sesi: ' . $e->getMessage());
+            $this->periksa('Sesi bertahan antar request', false, 'Gagal menguji sesi: '.$e->getMessage());
         }
 
         $this->baris('SESSION_SAME_SITE', (string) (config('session.same_site') ?? 'null'));
-        $this->baris('SESSION_LIFETIME', (string) config('session.lifetime') . ' menit');
+        $this->baris('SESSION_LIFETIME', (string) config('session.lifetime').' menit');
 
         // Config yang di-cache bisa memuat nilai lama sehingga berbeda dengan .env saat ini.
         $envPath = base_path('.env');
@@ -150,7 +153,7 @@ class CekLogin extends Command
                 $this->periksa('APP_KEY di config cache sama dengan .env',
                     $kunciEnv === '' || $kunciEnv === (string) config('app.key'),
                     'Config yang di-cache memakai APP_KEY lama, sehingga cookie sesi tidak bisa dibaca. '
-                    . 'Jalankan: php artisan config:clear lalu php artisan config:cache');
+                    .'Jalankan: php artisan config:clear lalu php artisan config:cache');
             }
         }
 
@@ -159,7 +162,7 @@ class CekLogin extends Command
         // Livewire membentuk alamat endpoint-nya dari APP_KEY. Bila rute di-cache
         // memakai kunci lama sementara halaman dibentuk dengan kunci baru, berkas
         // JS tidak ditemukan dan tombol tidak memberi reaksi apa pun.
-        $kelasResolver = \Livewire\Mechanisms\HandleRequests\EndpointResolver::class;
+        $kelasResolver = EndpointResolver::class;
 
         if (! class_exists($kelasResolver)) {
             $this->baris('Resolver endpoint', 'tidak tersedia pada versi Livewire ini');
@@ -173,7 +176,7 @@ class CekLogin extends Command
             $this->baris('Endpoint update', $pathUpdate);
 
             $rute = collect(app('router')->getRoutes()->getRoutes())
-                ->map(fn ($r) => '/' . ltrim($r->uri(), '/'))
+                ->map(fn ($r) => '/'.ltrim($r->uri(), '/'))
                 ->filter(fn ($uri) => Str::startsWith($uri, '/livewire'))
                 ->values()
                 ->all();
@@ -183,13 +186,13 @@ class CekLogin extends Command
 
             $this->periksa('Rute berkas JS Livewire terdaftar', $cocokScript,
                 'Alamat JS yang dipakai halaman tidak punya rute. Browser akan menerima 404, '
-                . 'Livewire tidak aktif, dan tombol masuk tidak memberi reaksi apa pun.');
+                .'Livewire tidak aktif, dan tombol masuk tidak memberi reaksi apa pun.');
 
             $this->periksa('Rute endpoint update terdaftar', $cocokUpdate,
                 'Endpoint update Livewire tidak terdaftar pada alamat yang dipakai halaman.');
 
             if ($rute !== []) {
-                $this->baris('Rute livewire terdaftar', implode(', ', array_slice($rute, 0, 3)) . (count($rute) > 3 ? ' ...' : ''));
+                $this->baris('Rute livewire terdaftar', implode(', ', array_slice($rute, 0, 3)).(count($rute) > 3 ? ' ...' : ''));
             }
 
             // Rute yang di-cache bisa menyimpan prefix dari APP_KEY lama.
@@ -203,7 +206,7 @@ class CekLogin extends Command
                 $this->periksa('Prefix pada cache rute sesuai APP_KEY sekarang',
                     str_contains($isi, ltrim($prefix, '/')),
                     'Cache rute masih memakai prefix Livewire dari APP_KEY lama, sedangkan halaman '
-                    . 'dibentuk memakai prefix baru. Jalankan: php artisan route:clear (atau optimize:clear).');
+                    .'dibentuk memakai prefix baru. Jalankan: php artisan route:clear (atau optimize:clear).');
             }
         }
 
@@ -225,13 +228,13 @@ class CekLogin extends Command
         $this->bagian('Data pengguna');
 
         try {
-            $pengguna = \App\Models\User::withoutGlobalScopes()->get();
+            $pengguna = User::withoutGlobalScopes()->get();
 
             $this->baris('Jumlah pengguna', (string) $pengguna->count());
             $this->periksa('Ada pengguna terdaftar', $pengguna->isNotEmpty(),
                 'Belum ada baris pada tabel users.');
 
-            $peranSah = array_map(fn ($kasus) => $kasus->value, \App\Enums\Role::cases());
+            $peranSah = array_map(fn ($kasus) => $kasus->value, Role::cases());
 
             foreach ($pengguna as $u) {
                 $sandi = (string) ($u->getAttributes()['password'] ?? '');
@@ -244,7 +247,7 @@ class CekLogin extends Command
                 }
 
                 if (! in_array($peran, $peranSah, true)) {
-                    $catatan[] = "peran '{$peran}' tidak dikenali (sah: " . implode(', ', $peranSah) . ')';
+                    $catatan[] = "peran '{$peran}' tidak dikenali (sah: ".implode(', ', $peranSah).')';
                 }
 
                 if (! (bool) $u->is_active) {
@@ -263,7 +266,7 @@ class CekLogin extends Command
             }
         } catch (\Throwable $e) {
             $this->periksa('Tabel users terbaca', false,
-                'Gagal membaca tabel users: ' . $e->getMessage() . '. Periksa koneksi database lalu jalankan migrate.');
+                'Gagal membaca tabel users: '.$e->getMessage().'. Periksa koneksi database lalu jalankan migrate.');
         }
 
         $this->bagian('Catatan error terakhir');
@@ -292,11 +295,11 @@ class CekLogin extends Command
                 $this->line('   Lima error terakhir, paling baru di atas:');
 
                 foreach ($error as $satu) {
-                    $this->line('      - ' . $satu);
+                    $this->line('      - '.$satu);
                 }
 
                 $this->catatan('Coba login sekali lagi, lalu jalankan perintah ini kembali. '
-                    . 'Bila muncul error baru dengan waktu yang cocok, itulah penyebabnya.');
+                    .'Bila muncul error baru dengan waktu yang cocok, itulah penyebabnya.');
             }
         }
 
@@ -306,15 +309,15 @@ class CekLogin extends Command
             $email = (string) $this->ask('Email');
             $sandi = (string) $this->secret('Kata sandi, tidak ditampilkan');
 
-            $adaEmail = \App\Models\User::withoutGlobalScopes()->where('email', $email)->exists();
+            $adaEmail = User::withoutGlobalScopes()->where('email', $email)->exists();
 
             $this->periksa('Email terdaftar', $adaEmail,
                 'Tidak ada pengguna dengan email tersebut. Periksa daftar email pada bagian Data pengguna di atas.');
 
             if ($adaEmail) {
-                \Illuminate\Support\Facades\Auth::logout();
+                Auth::logout();
 
-                $lolos = \Illuminate\Support\Facades\Auth::attempt([
+                $lolos = Auth::attempt([
                     'email' => $email,
                     'password' => $sandi,
                 ]);
@@ -323,9 +326,9 @@ class CekLogin extends Command
                     'Kata sandi tidak cocok dengan yang tersimpan di database.');
 
                 if ($lolos) {
-                    \Illuminate\Support\Facades\Auth::logout();
+                    Auth::logout();
                     $this->line('      -> Kredensial sah di sisi server. Bila di browser tetap gagal, '
-                        . 'masalahnya ada pada permintaan Livewire atau cookie, bukan pada kata sandi.');
+                        .'masalahnya ada pada permintaan Livewire atau cookie, bukan pada kata sandi.');
                 }
             }
         }
@@ -345,7 +348,7 @@ class CekLogin extends Command
     protected function bagian(string $judul): void
     {
         $this->newLine();
-        $this->line('<options=bold>' . $judul . '</>');
+        $this->line('<options=bold>'.$judul.'</>');
     }
 
     protected function baris(string $label, string $nilai): void
@@ -361,13 +364,13 @@ class CekLogin extends Command
             $this->masalah++;
 
             if ($saran !== '') {
-                $this->line('      -> ' . $saran);
+                $this->line('      -> '.$saran);
             }
         }
     }
 
     protected function catatan(string $teks): void
     {
-        $this->line('      -> ' . $teks);
+        $this->line('      -> '.$teks);
     }
 }

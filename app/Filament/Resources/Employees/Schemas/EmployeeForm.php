@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Employees\Schemas;
 
+use App\Enums\Role;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -50,7 +51,7 @@ class EmployeeForm
                             ->searchable()
                             ->preload()
                             ->default(fn () => auth()->user()->branch_id)
-                            ->disabled(fn () => auth()->user()->role !== \App\Enums\Role::AdminPusat)
+                            ->disabled(fn () => auth()->user()->role !== Role::AdminPusat)
                             ->dehydrated()
                             ->required()
                             ->columnSpanFull(),

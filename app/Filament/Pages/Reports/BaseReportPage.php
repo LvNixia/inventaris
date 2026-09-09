@@ -2,13 +2,16 @@
 
 namespace App\Filament\Pages\Reports;
 
+use App\Enums\Role;
 use App\Services\Reports\ReportExporter;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 
 /**
  * Kerangka halaman laporan.
@@ -136,7 +139,7 @@ abstract class BaseReportPage extends Page implements HasTable
     /**
      * Laporan hanya membaca data; tidak ada aksi ubah atau hapus.
      */
-    protected function applyDefaultTableSettings(\Filament\Tables\Table $table): \Filament\Tables\Table
+    protected function applyDefaultTableSettings(Table $table): Table
     {
         return $table
             ->recordActions([])
@@ -151,10 +154,10 @@ abstract class BaseReportPage extends Page implements HasTable
     protected function describePeriod(?string $from, ?string $until): string
     {
         return match (true) {
-            filled($from) && filled($until) => \Illuminate\Support\Carbon::parse($from)->translatedFormat('d M Y')
-                . ' s.d. ' . \Illuminate\Support\Carbon::parse($until)->translatedFormat('d M Y'),
-            filled($from) => 'Sejak ' . \Illuminate\Support\Carbon::parse($from)->translatedFormat('d M Y'),
-            filled($until) => 'Sampai ' . \Illuminate\Support\Carbon::parse($until)->translatedFormat('d M Y'),
+            filled($from) && filled($until) => Carbon::parse($from)->translatedFormat('d M Y')
+                .' s.d. '.Carbon::parse($until)->translatedFormat('d M Y'),
+            filled($from) => 'Sejak '.Carbon::parse($from)->translatedFormat('d M Y'),
+            filled($until) => 'Sampai '.Carbon::parse($until)->translatedFormat('d M Y'),
             default => 'Semua periode',
         };
     }
@@ -172,7 +175,7 @@ abstract class BaseReportPage extends Page implements HasTable
     {
         $user = auth()->user();
 
-        if ($user && $user->role !== \App\Enums\Role::AdminPusat && $user->branch_id) {
+        if ($user && $user->role !== Role::AdminPusat && $user->branch_id) {
             $query->where($column, $user->branch_id);
         }
 

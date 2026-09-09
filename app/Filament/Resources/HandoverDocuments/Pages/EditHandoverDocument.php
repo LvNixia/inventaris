@@ -10,7 +10,6 @@ class EditHandoverDocument extends EditRecord
 {
     protected static string $resource = HandoverDocumentResource::class;
 
-
     protected function getHeaderActions(): array
     {
         return [

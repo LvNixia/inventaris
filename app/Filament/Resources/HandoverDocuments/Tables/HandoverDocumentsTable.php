@@ -2,12 +2,18 @@
 
 namespace App\Filament\Resources\HandoverDocuments\Tables;
 
+use App\Enums\Role;
+use App\Services\HandoverCancellation;
+use App\Services\HandoverService;
+use App\Services\PdfRenderer;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Storage;
 
 class HandoverDocumentsTable
 {
@@ -28,7 +34,7 @@ class HandoverDocumentsTable
                 TextColumn::make('branch.name')
                     ->label('Cabang')
                     ->sortable()
-                    ->visible(fn () => auth()->user()->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn () => auth()->user()->role === Role::AdminPusat),
                 TextColumn::make('firstParty.name')
                     ->label('Diserahkan Oleh')
                     ->searchable(),
@@ -58,7 +64,7 @@ class HandoverDocumentsTable
                 SelectFilter::make('branch_id')
                     ->label('Cabang')
                     ->relationship('branch', 'name')
-                    ->visible(fn () => auth()->user()->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn () => auth()->user()->role === Role::AdminPusat),
                 SelectFilter::make('status')
                     ->options(['draft' => 'Draf', 'issued' => 'Terbit', 'cancelled' => 'Dibatalkan']),
             ])
@@ -73,16 +79,16 @@ class HandoverDocumentsTable
                     ->requiresConfirmation()
                     ->action(function ($record) {
                         try {
-                            app(\App\Services\HandoverService::class)->issue($record);
+                            app(HandoverService::class)->issue($record);
                             // Generate PDF immediately or via queued job?
                             // For now, render sync
-                            $path = app(\App\Services\PdfRenderer::class)->handover($record);
+                            $path = app(PdfRenderer::class)->handover($record);
                             $record->pdf_path = $path;
                             $record->save();
 
-                            \Filament\Notifications\Notification::make()->success()->title('Surat diterbitkan!')->send();
+                            Notification::make()->success()->title('Surat diterbitkan!')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
                         }
                     }),
                 Action::make('unduh_pdf')
@@ -91,12 +97,14 @@ class HandoverDocumentsTable
                     ->icon('heroicon-o-document-arrow-down')
                     ->visible(fn ($record) => $record->status !== 'draft' && $record->pdf_path)
                     ->action(function ($record) {
-                        if (!$record->pdf_path || !\Illuminate\Support\Facades\Storage::exists($record->pdf_path)) {
-                            \Filament\Notifications\Notification::make()->danger()->title('PDF tidak ditemukan')->send();
+                        if (! $record->pdf_path || ! Storage::exists($record->pdf_path)) {
+                            Notification::make()->danger()->title('PDF tidak ditemukan')->send();
+
                             return;
                         }
-                        $filename = str_replace('/', '_', $record->document_number) . '.pdf';
-                        return response()->download(storage_path('app/' . $record->pdf_path), $filename);
+                        $filename = str_replace('/', '_', $record->document_number).'.pdf';
+
+                        return response()->download(storage_path('app/'.$record->pdf_path), $filename);
                     }),
                 Action::make('preview_draft')
                     ->label('Pratinjau Draf')
@@ -104,7 +112,8 @@ class HandoverDocumentsTable
                     ->icon('heroicon-o-eye')
                     ->visible(fn ($record) => $record->status === 'draft')
                     ->action(function ($record) {
-                        $pdf = app(\App\Services\PdfRenderer::class)->handover($record, true);
+                        $pdf = app(PdfRenderer::class)->handover($record, true);
+
                         return response()->streamDownload(function () use ($pdf) {
                             echo $pdf;
                         }, 'draft.pdf', ['Content-Type' => 'application/pdf']);
@@ -113,18 +122,18 @@ class HandoverDocumentsTable
                     ->label('Batalkan')
                     ->color('danger')
                     ->icon('heroicon-o-x-circle')
-                    ->visible(fn ($record) => $record->status === 'issued' && auth()->user()->role === \App\Enums\Role::AdminPusat)
+                    ->visible(fn ($record) => $record->status === 'issued' && auth()->user()->role === Role::AdminPusat)
                     ->form([
-                        \Filament\Forms\Components\Textarea::make('reason')
+                        Textarea::make('reason')
                             ->label('Alasan Pembatalan')
                             ->required(),
                     ])
                     ->action(function ($record, array $data) {
                         try {
-                            app(\App\Services\HandoverCancellation::class)->cancel($record, $data['reason']);
-                            \Filament\Notifications\Notification::make()->success()->title('Surat dibatalkan!')->send();
+                            app(HandoverCancellation::class)->cancel($record, $data['reason']);
+                            Notification::make()->success()->title('Surat dibatalkan!')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal Membatalkan')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal Membatalkan')->body($e->getMessage())->send();
                         }
                     }),
             ])

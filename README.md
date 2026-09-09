@@ -187,6 +187,7 @@ Bersihkan cache Filament setiap kali kamu mengubah `AppServiceProvider` atau ber
 | `app/Filament/Pages/Reports/` | Halaman laporan yang bisa dicetak dan diekspor |
 | `app/Services/` | Aturan bisnis: penerimaan pembelian, serah terima, servis, mutasi cabang |
 | `app/Filament/Support/AssetSelect.php` | Dropdown pemilih unit aset yang dipakai bersama beberapa form |
+| `app/Services/Import/AssetImporter.php` | Impor aset dari XLSX/CSV: pratinjau, jalankan, batalkan |
 | `database/seeders/MasterSeeder.php` | Data acuan, wajib dijalankan |
 | `database/seeders/DemoDataSeeder.php` | Data simulasi, opsional |
 
@@ -207,6 +208,16 @@ Satu baris `assets` berarti tepat satu unit fisik. Karena itu tidak ada kolom ju
 Konsekuensi yang paling terasa: satu unit masuk servis tidak lagi memengaruhi unit lain yang sejenis, dan nomor seri selalu bisa disimpan karena tidak lagi berbagi baris.
 
 Nomor seri boleh dikosongkan saat penerimaan, tetapi unit berkategori `requires_serial` ditolak saat hendak diserahkan, dikirim antar cabang, atau ditinggal di tempat servis sampai serialnya terisi.
+
+## Impor Data Lama
+
+Inventaris yang sudah berjalan bisa dimasukkan lewat **Manajemen Aset → Impor Aset** (khusus Admin Pusat), menerima XLSX atau CSV.
+
+Prosesnya dua tahap. Tahap pertama membaca dan memvalidasi seluruh baris tanpa menyentuh basis data, lalu menampilkan berapa baris siap masuk, berapa bermasalah, dan apa masalahnya per baris. Tahap kedua menulis semuanya dalam satu transaksi; baris bermasalah dilewati tanpa menggagalkan sisanya.
+
+Barang, vendor, dan batch pembelian dibuat otomatis bila belum ada. Baris dengan nomor faktur, tanggal, dan harga yang sama digabung menjadi satu batch pembelian.
+
+Setiap impor tercatat di `import_batches` dan bisa dibatalkan selama unitnya belum punya transaksi, serah terima, atau catatan servis.
 
 ## Masalah Umum
 

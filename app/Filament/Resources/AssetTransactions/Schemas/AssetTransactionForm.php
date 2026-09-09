@@ -5,8 +5,8 @@ namespace App\Filament\Resources\AssetTransactions\Schemas;
 use App\Filament\Support\AssetSelect;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -75,7 +75,7 @@ class AssetTransactionForm
                             // pengganti, Filament menolak pilihan bernilai null.
                             ->getOptionLabelFromRecordUsing(fn ($record): string => filled($record->document_number)
                                 ? $record->document_number
-                                : 'DRAF #' . $record->id . ' (' . $record->document_date?->translatedFormat('d M Y') . ')')
+                                : 'DRAF #'.$record->id.' ('.$record->document_date?->translatedFormat('d M Y').')')
                             ->searchable()
                             ->preload(),
                         Select::make('from_branch_id')

@@ -106,7 +106,7 @@ class PurchaseBatchForm
                             ->itemLabel(fn (array $state, $key): string => 'Unit')
                             ->schema([
                                 TextInput::make('serial_number')
-                                    ->label('Nomor Seri')
+                                    ->label(fn (Get $get): string => static::produk($get('../../product_id'))?->serialLabel() ?? 'Nomor Seri')
                                     ->maxLength(255)
                                     ->distinct()
                                     ->unique('assets', 'serial_number')

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class HandoverItem extends Model
 {
     protected $guarded = [];
+
     public $timestamps = false;
 
     protected $casts = [

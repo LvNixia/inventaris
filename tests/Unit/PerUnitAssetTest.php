@@ -98,7 +98,7 @@ class PerUnitAssetTest extends TestCase
             app(HandoverService::class)->issue($doc);
             $this->fail('Serah terima seharusnya ditolak karena nomor seri kosong.');
         } catch (\Exception $e) {
-            $this->assertStringContainsString('Nomor seri', $e->getMessage());
+            $this->assertStringContainsString('Nomor Seri', $e->getMessage());
         }
 
         // Setelah serial dilengkapi, surat yang sama bisa diterbitkan.
@@ -114,7 +114,7 @@ class PerUnitAssetTest extends TestCase
     {
         $unit = $this->beli($this->barang('LAP', 'Latitude 5430'), 1)->first();
 
-        $this->expectExceptionMessage('Nomor seri');
+        $this->expectExceptionMessage('Nomor Seri');
 
         app(BranchTransferService::class)->send($unit, [
             'to_branch_id' => Branch::where('code', 'BTM')->value('id'),
@@ -125,7 +125,7 @@ class PerUnitAssetTest extends TestCase
     {
         $unit = $this->beli($this->barang('LAP', 'ProBook 440'), 1)->first();
 
-        $this->expectExceptionMessage('Nomor seri');
+        $this->expectExceptionMessage('Nomor Seri');
 
         app(ServiceService::class)->open($unit, [
             'service_kind_id' => ServiceKind::where('code', 'perbaikan')->value('id'),
@@ -134,6 +134,33 @@ class PerUnitAssetTest extends TestCase
             'started_at' => now(),
             'complaint' => 'Layar berkedip.',
         ]);
+    }
+
+    /**
+     * Lisensi dilacak lewat kunci produknya, memakai kolom yang sama dengan
+     * nomor seri perangkat, jadi pagarnya ikut berlaku.
+     */
+    public function test_lisensi_tidak_bisa_diserahkan_tanpa_kunci(): void
+    {
+        $lisensi = $this->barang('LSS', 'Microsoft 365 Business Standard');
+        $unit = $this->beli($lisensi, 1)->first();
+
+        $this->assertTrue($unit->isMissingRequiredSerial());
+        $this->assertSame('Kunci Lisensi', $lisensi->serialLabel());
+
+        try {
+            app(HandoverService::class)->issue($this->draf($unit, $this->karyawan()));
+            $this->fail('Serah terima seharusnya ditolak karena kunci lisensi kosong.');
+        } catch (\Exception $e) {
+            // Pesannya menyebut kunci lisensi, bukan nomor seri.
+            $this->assertStringContainsString('Kunci Lisensi', $e->getMessage());
+        }
+
+        $unit->update(['serial_number' => 'ABCDE-12345-FGHIJ-67890-KLMNO']);
+
+        app(HandoverService::class)->issue($this->draf($unit->refresh(), $this->karyawan('Penerima Kedua')));
+
+        $this->assertNotNull($unit->refresh()->current_holder_id);
     }
 
     public function test_barang_tanpa_serial_tidak_ikut_dipagari(): void

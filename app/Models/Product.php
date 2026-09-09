@@ -58,4 +58,16 @@ class Product extends Model
     {
         return (bool) $this->category?->requires_serial;
     }
+
+    /**
+     * Sebutan penanda unik untuk kategori ini.
+     *
+     * Kolom yang dipakai sama, tetapi pada lisensi yang dicatat adalah kunci
+     * produknya, bukan nomor seri perangkat. Menyebutnya apa adanya membuat
+     * formulir dan pesan kesalahan tidak membingungkan.
+     */
+    public function serialLabel(): string
+    {
+        return $this->category?->code_prefix === 'LSS' ? 'Kunci Lisensi' : 'Nomor Seri';
+    }
 }

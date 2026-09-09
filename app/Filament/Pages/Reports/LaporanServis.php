@@ -203,6 +203,6 @@ class LaporanServis extends BaseReportPage
             return '—';
         }
 
-        return $hari . ' hari' . (blank($record->finished_at) ? ' (berjalan)' : '');
+        return $hari.' hari'.(blank($record->finished_at) ? ' (berjalan)' : '');
     }
 }

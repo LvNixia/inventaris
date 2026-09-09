@@ -2,15 +2,27 @@
 
 namespace App\Filament\Resources\Assets\Tables;
 
+use App\Enums\Role;
+use App\Models\Asset;
+use App\Models\Condition;
+use App\Services\AssetExportService;
+use App\Services\AssetService;
+use App\Services\BranchTransferService;
+use App\Services\Reports\ReportExporter;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
-use App\Models\Asset;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class AssetsTable
 {
@@ -48,7 +60,7 @@ class AssetsTable
                 TextColumn::make('branch.name')
                     ->label('Cabang')
                     ->sortable()
-                    ->visible(fn () => auth()->user()->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn () => auth()->user()->role === Role::AdminPusat),
                 TextColumn::make('currentStatus.name')
                     ->label('Status')
                     ->sortable(),
@@ -75,7 +87,7 @@ class AssetsTable
                 SelectFilter::make('branch_id')
                     ->label('Cabang')
                     ->relationship('branch', 'name')
-                    ->visible(fn () => auth()->user()->role === \App\Enums\Role::AdminPusat),
+                    ->visible(fn () => auth()->user()->role === Role::AdminPusat),
                 SelectFilter::make('category')
                     ->label('Kategori')
                     ->relationship('product.category', 'name'),
@@ -92,30 +104,30 @@ class AssetsTable
                     ->relationship('condition', 'name'),
             ])
             ->recordActions([
-                \Filament\Actions\Action::make('konfirmasi_terima')
+                Action::make('konfirmasi_terima')
                     ->label('Terima')
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
-                    ->visible(fn ($record) => $record->currentStatus?->code === 'in_transit' && (auth()->user()->role === \App\Enums\Role::AdminPusat || auth()->user()->branch_id === $record->branch_id))
+                    ->visible(fn ($record) => $record->currentStatus?->code === 'in_transit' && (auth()->user()->role === Role::AdminPusat || auth()->user()->branch_id === $record->branch_id))
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('transaction_date')
+                        DatePicker::make('transaction_date')
                             ->label('Tanggal Terima')
                             ->default(now())
                             ->required(),
-                        \Filament\Forms\Components\Select::make('condition_id')
+                        Select::make('condition_id')
                             ->label('Kondisi Saat Diterima')
-                            ->options(\App\Models\Condition::pluck('name', 'id'))
-                            ->default(fn($record) => $record->condition_id)
+                            ->options(Condition::pluck('name', 'id'))
+                            ->default(fn ($record) => $record->condition_id)
                             ->required(),
-                        \Filament\Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('Catatan Penerimaan'),
                     ])
                     ->action(function ($record, array $data) {
                         try {
-                            app(\App\Services\BranchTransferService::class)->receive($record, $data);
-                            \Filament\Notifications\Notification::make()->success()->title('Barang Diterima')->send();
+                            app(BranchTransferService::class)->receive($record, $data);
+                            Notification::make()->success()->title('Barang Diterima')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
                         }
                     }),
                 EditAction::make(),
@@ -123,13 +135,13 @@ class AssetsTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
-                            $service = app(\App\Services\AssetService::class);
+                        ->action(function (Collection $records) {
+                            $service = app(AssetService::class);
                             foreach ($records as $record) {
                                 try {
                                     $service->delete($record);
                                 } catch (\Exception $e) {
-                                    \Filament\Notifications\Notification::make()
+                                    Notification::make()
                                         ->danger()
                                         ->title('Gagal Menghapus')
                                         ->body($e->getMessage())
@@ -140,16 +152,16 @@ class AssetsTable
                 ]),
             ])
             ->headerActions([
-                \Filament\Actions\Action::make('export')
+                Action::make('export')
                     ->label('Ekspor')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
                     ->action(function ($livewire) {
                         try {
                             // Diperiksa sebelum unduhan dimulai; XLSX butuh ekstensi zip.
-                            \App\Services\Reports\ReportExporter::ensureXlsxIsSupported();
+                            ReportExporter::ensureXlsxIsSupported();
                         } catch (\RuntimeException $e) {
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->warning()
                                 ->title('Ekspor XLSX belum bisa dipakai')
                                 ->body($e->getMessage())
@@ -161,8 +173,8 @@ class AssetsTable
 
                         return response()->streamDownload(function () use ($livewire) {
                             $query = $livewire->getFilteredTableQuery();
-                            app(\App\Services\AssetExportService::class)->export($query);
-                        }, 'export_assets_' . date('Ymd_His') . '.xlsx');
+                            app(AssetExportService::class)->export($query);
+                        }, 'export_assets_'.date('Ymd_His').'.xlsx');
                     }),
             ]);
     }

@@ -2,8 +2,16 @@
 
 namespace App\Filament\Resources\AssetServices\Tables;
 
+use App\Models\Condition;
+use App\Models\ServiceResult;
+use App\Services\ServiceService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -52,30 +60,30 @@ class AssetServicesTable
                     ->color('success')
                     ->icon('heroicon-o-check-circle')
                     ->form([
-                        \Filament\Forms\Components\DatePicker::make('finished_at')
+                        DatePicker::make('finished_at')
                             ->label('Tanggal Selesai')
                             ->default(now())
                             ->required(),
-                        \Filament\Forms\Components\Select::make('service_result_id')
+                        Select::make('service_result_id')
                             ->label('Hasil Servis')
-                            ->options(\App\Models\ServiceResult::pluck('name', 'id'))
+                            ->options(ServiceResult::pluck('name', 'id'))
                             ->required(),
-                        \Filament\Forms\Components\Textarea::make('work_done')
+                        Textarea::make('work_done')
                             ->label('Pekerjaan yang Dilakukan'),
-                        \Filament\Forms\Components\TextInput::make('cost_service')
+                        TextInput::make('cost_service')
                             ->label('Biaya Jasa')
                             ->numeric()
                             ->default(0),
-                        \Filament\Forms\Components\TextInput::make('cost_parts')
+                        TextInput::make('cost_parts')
                             ->label('Biaya Part')
                             ->numeric()
                             ->default(0),
-                        \Filament\Forms\Components\DatePicker::make('service_warranty_until')
+                        DatePicker::make('service_warranty_until')
                             ->label('Garansi Servis Sampai'),
-                        \Filament\Forms\Components\Select::make('condition_after_id')
+                        Select::make('condition_after_id')
                             ->label('Kondisi Setelah Servis')
-                            ->options(\App\Models\Condition::pluck('name', 'id')),
-                        \Filament\Forms\Components\Select::make('status_setelah')
+                            ->options(Condition::pluck('name', 'id')),
+                        Select::make('status_setelah')
                             ->label('Status Setelah')
                             ->options([
                                 'dipakai' => 'Kembali ke Pemegang (Dipakai)',
@@ -87,10 +95,10 @@ class AssetServicesTable
                     ])
                     ->action(function ($record, array $data) {
                         try {
-                            app(\App\Services\ServiceService::class)->close($record, $data);
-                            \Filament\Notifications\Notification::make()->success()->title('Servis selesai!')->send();
+                            app(ServiceService::class)->close($record, $data);
+                            Notification::make()->success()->title('Servis selesai!')->send();
                         } catch (\Exception $e) {
-                            \Filament\Notifications\Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
+                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
                         }
                     }),
                 EditAction::make(),

@@ -47,7 +47,7 @@ class ServiceService
             // Nota vendor selalu mencantumkan nomor seri. Bila barang ditinggal
             // tanpa serial, unit yang kembali tidak bisa dipastikan unit yang sama.
             if (($data['item_left'] ?? false) && $asset->isMissingRequiredSerial()) {
-                throw new Exception("Nomor seri aset {$asset->asset_code} belum diisi; lengkapi dulu sebelum barang ditinggal di tempat servis.");
+                throw new Exception("{$asset->product?->serialLabel()} aset {$asset->asset_code} belum diisi; lengkapi dulu sebelum barang ditinggal di tempat servis.");
             }
 
             $kind = ServiceKind::findOrFail($data['service_kind_id']);

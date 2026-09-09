@@ -18,6 +18,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -56,10 +57,10 @@ class AdminPanelProvider extends PanelProvider
             // Versi memakai waktu modifikasi file agar tidak tertahan cache browser.
             ->renderHook(
                 PanelsRenderHook::STYLES_AFTER,
-                fn (): \Illuminate\Support\HtmlString => new \Illuminate\Support\HtmlString(
-                    '<link rel="stylesheet" href="' . asset('css/admin-theme.css')
-                    . '?v=' . (is_file(public_path('css/admin-theme.css')) ? filemtime(public_path('css/admin-theme.css')) : '1')
-                    . '">',
+                fn (): HtmlString => new HtmlString(
+                    '<link rel="stylesheet" href="'.asset('css/admin-theme.css')
+                    .'?v='.(is_file(public_path('css/admin-theme.css')) ? filemtime(public_path('css/admin-theme.css')) : '1')
+                    .'">',
                 ),
             )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

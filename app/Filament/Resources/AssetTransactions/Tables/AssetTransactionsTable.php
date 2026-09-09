@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\AssetTransactions\Tables;
 
+use App\Services\AssetTransactionExportService;
+use App\Services\Reports\ReportExporter;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -87,9 +90,9 @@ class AssetTransactionsTable
                     ->action(function ($livewire) {
                         try {
                             // Diperiksa sebelum unduhan dimulai; XLSX butuh ekstensi zip.
-                            \App\Services\Reports\ReportExporter::ensureXlsxIsSupported();
+                            ReportExporter::ensureXlsxIsSupported();
                         } catch (\RuntimeException $e) {
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->warning()
                                 ->title('Ekspor XLSX belum bisa dipakai')
                                 ->body($e->getMessage())
@@ -101,8 +104,8 @@ class AssetTransactionsTable
 
                         return response()->streamDownload(function () use ($livewire) {
                             $query = $livewire->getFilteredTableQuery();
-                            app(\App\Services\AssetTransactionExportService::class)->export($query);
-                        }, 'export_transactions_' . date('Ymd_His') . '.xlsx');
+                            app(AssetTransactionExportService::class)->export($query);
+                        }, 'export_transactions_'.date('Ymd_His').'.xlsx');
                     }),
             ])
             // Riwayat transaksi bersifat permanen: tidak ada aksi massal / hapus.

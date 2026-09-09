@@ -6,6 +6,7 @@ use App\Services\DataCheckService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Illuminate\Contracts\Support\Htmlable;
 
 class DataCheck extends Page
 {
@@ -27,7 +28,7 @@ class DataCheck extends Page
         return 'Pemeriksaan Data';
     }
 
-    public function getTitle(): string|\Illuminate\Contracts\Support\Htmlable
+    public function getTitle(): string|Htmlable
     {
         return 'Pemeriksaan Data';
     }
@@ -66,7 +67,7 @@ class DataCheck extends Page
                 ->send()
             : Notification::make()
                 ->warning()
-                ->title('Ditemukan ' . count($this->issues) . ' masalah data')
+                ->title('Ditemukan '.count($this->issues).' masalah data')
                 ->body('Rincian masalah ditampilkan di halaman ini.')
                 ->send();
     }

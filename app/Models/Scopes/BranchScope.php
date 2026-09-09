@@ -19,7 +19,7 @@ class BranchScope implements Scope
             $user = Auth::user();
 
             if ($user->role !== Role::AdminPusat && $user->branch_id) {
-                $builder->where($model->getTable() . '.branch_id', $user->branch_id);
+                $builder->where($model->getTable().'.branch_id', $user->branch_id);
             }
         }
     }

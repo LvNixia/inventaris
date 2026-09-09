@@ -37,7 +37,7 @@ class MasterSeeder extends Seeder
             ['name' => 'Desktop PC', 'code_prefix' => 'PC', 'requires_serial' => true],
             ['name' => 'Monitor', 'code_prefix' => 'MON', 'requires_serial' => true],
             ['name' => 'Printer', 'code_prefix' => 'PRN', 'requires_serial' => true],
-            ['name' => 'Lisensi', 'code_prefix' => 'LSS', 'requires_serial' => false],
+            ['name' => 'Lisensi', 'code_prefix' => 'LSS', 'requires_serial' => true],
             ['name' => 'Aksesoris', 'code_prefix' => 'ACC', 'requires_serial' => false],
             ['name' => 'Kabel & Charger', 'code_prefix' => 'CBL', 'requires_serial' => false],
             ['name' => 'Tas & Casing', 'code_prefix' => 'BAG', 'requires_serial' => false],
