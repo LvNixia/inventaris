@@ -202,4 +202,4 @@ Seluruh pergerakan aset ditulis lewat kelas di `app/Services/`, bukan lewat peny
 
 **Perubahan pada form atau tabel tidak muncul** — jalankan `php artisan filament:optimize-clear`, lalu muat ulang browser dengan `Ctrl+Shift+R`.
 
-**`Tests\Feature\ExampleTest` gagal dengan status 302** — pengujian bawaan Laravel itu mengharapkan halaman depan membalas 200, padahal aplikasi ini mengalihkan `/` ke `/admin`. Bukan tanda pemasangan gagal; tiga pengujian lainnya lulus.
+**`php artisan test` gagal seluruhnya setelah kloning** — pengujian memakai SQLite di memori, jadi pastikan ekstensi `pdo_sqlite` aktif. Seluruh pengujian seharusnya lulus tanpa perlu menyiapkan database MySQL lebih dulu.
