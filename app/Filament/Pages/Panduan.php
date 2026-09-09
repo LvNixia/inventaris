@@ -3,7 +3,9 @@
 namespace App\Filament\Pages;
 
 use App\Models\Asset;
+use App\Models\GoodsReceipt;
 use App\Models\HandoverDocument;
+use App\Models\PurchaseOrder;
 use Filament\Pages\Page;
 use Illuminate\Contracts\Support\Htmlable;
 use Livewire\Attributes\Computed;
@@ -53,6 +55,12 @@ class Panduan extends Page
             'nomorSurat' => HandoverDocument::withoutGlobalScopes()
                 ->whereNotNull('document_number')
                 ->value('document_number') ?? 'IDS-IT/JKT/2026/03/01',
+            'nomorPo' => PurchaseOrder::withoutGlobalScopes()
+                ->whereNotNull('po_number')
+                ->value('po_number') ?? 'PO/JKT/2026/09/01',
+            'nomorGr' => GoodsReceipt::withoutGlobalScopes()
+                ->whereNotNull('gr_number')
+                ->value('gr_number') ?? 'GR/JKT/2026/09/01',
         ];
     }
 }

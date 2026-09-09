@@ -3,16 +3,13 @@
 namespace App\Filament\Resources\PurchaseBatches\Schemas;
 
 use App\Enums\Role;
-use App\Models\Condition;
 use App\Models\Product;
 use App\Models\PurchaseBatch;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
 
@@ -91,48 +88,8 @@ class PurchaseBatchForm
                             ->columnSpanFull(),
                     ]),
 
-                Section::make('Unit yang Diterima')
-                    ->description(fn (Get $get): string => static::wajibSerial($get('product_id'))
-                        ? 'Kategori ini dilacak per unit. Isi satu baris per unit; nomor seri boleh menyusul, tetapi harus terisi sebelum unitnya diserahkan.'
-                        : 'Kategori ini tidak bernomor seri. Tambahkan baris sebanyak unit yang diterima.')
-                    ->schema([
-                        Repeater::make('units')
-                            ->hiddenLabel()
-                            ->addActionLabel('Tambah Unit')
-                            ->defaultItems(1)
-                            ->minItems(1)
-                            ->reorderable(false)
-                            ->columns(3)
-                            ->itemLabel(fn (array $state, $key): string => 'Unit')
-                            ->schema([
-                                TextInput::make('serial_number')
-                                    ->label(fn (Get $get): string => static::produk($get('../../product_id'))?->serialLabel() ?? 'Nomor Seri')
-                                    ->maxLength(255)
-                                    ->distinct()
-                                    ->unique('assets', 'serial_number')
-                                    ->visible(fn (Get $get): bool => static::wajibSerial($get('../../product_id'))),
-
-                                TextInput::make('imei_1')
-                                    ->label('IMEI 1')
-                                    ->maxLength(255)
-                                    ->visible(fn (Get $get): bool => static::kategoriKode($get('../../product_id')) === 'SMP'),
-
-                                TextInput::make('imei_2')
-                                    ->label('IMEI 2')
-                                    ->maxLength(255)
-                                    ->visible(fn (Get $get): bool => static::kategoriKode($get('../../product_id')) === 'SMP'),
-
-                                Select::make('condition_id')
-                                    ->label('Kondisi')
-                                    ->options(fn () => Condition::pluck('name', 'id'))
-                                    ->searchable(),
-                            ])
-                            ->visibleOn('create'),
-                    ])
-                    ->visibleOn('create'),
-
                 Section::make('Unit dari Pembelian Ini')
-                    ->description('Tambah unit lewat tombol Tambah Unit di halaman daftar bila sisa kiriman datang belakangan.')
+                    ->description('Unit ditambahkan lewat Penerimaan Barang, bukan dari sini.')
                     ->schema([
                         TextInput::make('jumlah_unit')
                             ->label('Jumlah Unit')

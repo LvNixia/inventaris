@@ -53,7 +53,7 @@ class PanelAccessTest extends TestCase
     {
         return [
             'daftar barang' => ['/admin/products'],
-            'daftar pembelian' => ['/admin/purchase-batches'],
+            'arsip pembelian' => ['/admin/purchase-batches'],
             'daftar aset' => ['/admin/assets'],
             'daftar pesanan pembelian' => ['/admin/purchase-orders'],
             'buat pesanan pembelian' => ['/admin/purchase-orders/create'],

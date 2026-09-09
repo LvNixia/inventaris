@@ -1,6 +1,6 @@
 # Sistem Inventaris Aset
 
-Aplikasi pencatatan aset IT: pendaftaran aset, serah terima ke karyawan, servis dan upgrade, mutasi antar cabang, pelepasan aset, lampiran berkas, serta laporan yang bisa dicetak dan diekspor.
+Aplikasi pencatatan aset IT sekaligus pengadaan: pesanan pembelian, penerimaan barang, tagihan dan pembayaran vendor, serah terima ke karyawan, servis dan upgrade, mutasi antar cabang, pelepasan aset, lampiran berkas, serta laporan yang bisa dicetak dan diekspor.
 
 Dibangun dengan Laravel 13 dan Filament 5. Seluruh antarmuka berada di panel admin — tidak ada halaman publik.
 
@@ -95,7 +95,7 @@ php artisan db:seed --class=DemoDataSeeder
 
 Seeder ini menolak berjalan bila `APP_ENV=production` atau bila tabel aset sudah berisi data.
 
-Isinya 20 barang di katalog, 21 pembelian, 52 unit aset, 12 karyawan, 8 surat serah terima, 29 transaksi, 4 catatan servis, dan 4 lampiran — dibuat lewat service aplikasi yang sama dengan yang dipakai antarmuka, sehingga riwayat transaksinya konsisten.
+Isinya 20 barang di katalog, 21 pesanan pembelian, 21 penerimaan barang, 4 faktur vendor, 52 unit aset, 12 karyawan, 8 surat serah terima, 29 transaksi, 4 catatan servis, dan 4 lampiran — seluruhnya dibuat lewat alur yang sama dengan yang dipakai pengguna, bukan jalan pintas, sehingga dokumen pengadaan dan riwayat transaksinya konsisten.
 
 Skenario yang sengaja disiapkan agar laporan tidak kosong:
 
@@ -106,15 +106,18 @@ Skenario yang sengaja disiapkan agar laporan tidak kosong:
 - pelepasan aset dengan alasan dibuang dan hilang
 - 1 surat serah terima yang masih berstatus draf
 - lampiran berkas, salah satunya tertaut ke catatan servis
+- 1 barang dibeli dua kali dengan harga berbeda
+- faktur vendor: lunas, dibayar sebagian, dan lewat jatuh tempo
 
-Seeder ini juga membuat dua akun:
+Seeder ini juga membuat tiga akun:
 
 | Email | Peran | Kata sandi |
 |---|---|---|
 | `admin@indosurta.test` | Admin Pusat | `password` |
 | `batam@indosurta.test` | Admin Cabang Batam | `password` |
+| `pengadaan@indosurta.test` | Staf Pengadaan | `password` |
 
-Akun cabang berguna untuk mencoba pembatasan data per cabang: pengguna cabang hanya melihat aset milik cabangnya.
+Akun cabang berguna untuk mencoba pembatasan data per cabang: pengguna cabang hanya melihat aset milik cabangnya. Akun Staf Pengadaan dipakai mengajukan pesanan pembelian — pengaju tidak boleh menyetujui pengajuannya sendiri, jadi persetujuannya di tangan Admin Pusat.
 
 Kata sandi di atas lemah dan hanya untuk pengembangan lokal. Jangan pakai seeder ini di server produksi.
 
@@ -188,6 +191,7 @@ Bersihkan cache Filament setiap kali kamu mengubah `AppServiceProvider` atau ber
 | `app/Services/` | Aturan bisnis: penerimaan pembelian, serah terima, servis, mutasi cabang |
 | `app/Filament/Support/AssetSelect.php` | Dropdown pemilih unit aset yang dipakai bersama beberapa form |
 | `app/Services/Import/AssetImporter.php` | Impor aset dari XLSX/CSV: pratinjau, jalankan, batalkan |
+| `docs/erp/` | Rancangan modul pengadaan, satu berkas per submodul |
 | `database/seeders/MasterSeeder.php` | Data acuan, wajib dijalankan |
 | `database/seeders/DemoDataSeeder.php` | Data simulasi, opsional |
 
@@ -208,6 +212,31 @@ Satu baris `assets` berarti tepat satu unit fisik. Karena itu tidak ada kolom ju
 Konsekuensi yang paling terasa: satu unit masuk servis tidak lagi memengaruhi unit lain yang sejenis, dan nomor seri selalu bisa disimpan karena tidak lagi berbagi baris.
 
 Nomor seri boleh dikosongkan saat penerimaan, tetapi unit berkategori `requires_serial` ditolak saat hendak diserahkan, dikirim antar cabang, atau ditinggal di tempat servis sampai serialnya terisi.
+
+## Alur Pengadaan
+
+```
+Pesanan Pembelian   diajukan, lalu disetujui Admin Pusat
+      │             pengaju tidak boleh menyetujui pengajuannya sendiri
+      ▼
+Penerimaan Barang   unit aset lahir di sini, satu baris per unit fisik
+      │             sekaligus menulis lapisan biaya ke purchase_batches
+      ▼
+Faktur Vendor       boleh mencakup beberapa penerimaan sekaligus
+      │             jatuh tempo dari syarat pembayaran yang disalin ke faktur
+      ▼
+Pembayaran Vendor   satu transfer boleh melunasi beberapa faktur
+```
+
+Unit yang lahir dari penerimaan langsung siap dipakai modul serah terima,
+servis, mutasi cabang, dan lampiran — tanpa langkah tambahan.
+
+Menu **Arsip Pembelian** hanya untuk melihat pembelian lama. Sejak alur di atas
+aktif, barisnya ditulis sistem setiap penerimaan disetujui dan tidak lagi diisi
+manual, supaya tidak ada barang masuk tanpa jejak hutangnya.
+
+Rancangan lengkapnya, termasuk keputusan yang diambil beserta alasannya, ada di
+[`docs/erp/`](docs/erp/).
 
 ## Impor Data Lama
 

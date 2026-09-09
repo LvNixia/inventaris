@@ -14,19 +14,26 @@ use App\Models\Condition;
 use App\Models\DisposalReason;
 use App\Models\Division;
 use App\Models\Employee;
+use App\Models\GoodsReceipt;
 use App\Models\HandoverDocument;
+use App\Models\PaymentTerm;
 use App\Models\Position;
 use App\Models\Product;
 use App\Models\PurchaseBatch;
+use App\Models\PurchaseInvoice;
+use App\Models\PurchaseOrder;
 use App\Models\ServiceKind;
 use App\Models\ServiceResult;
 use App\Models\User;
 use App\Models\Vendor;
-use App\Services\AssetService;
 use App\Services\BranchTransferService;
+use App\Services\GoodsReceiptService;
 use App\Services\HandoverService;
+use App\Services\PurchaseInvoiceService;
+use App\Services\PurchaseOrderService;
 use App\Services\ServiceService;
 use App\Services\TransactionService;
+use App\Services\VendorPaymentService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -63,6 +70,12 @@ class DemoDataSeeder extends Seeder
 
     /** @var array<string, Product> */
     protected array $products = [];
+
+    /** Akun yang mengajukan pesanan; persetujuannya di tangan admin pusat. */
+    protected User $pengadaan;
+
+    /** @var array<int, GoodsReceipt> */
+    protected array $receipts = [];
 
     /**
      * Unit hasil pembelian, dikelompokkan per kunci barang.
@@ -111,6 +124,7 @@ class DemoDataSeeder extends Seeder
             $this->buatPenggunaCabang();
             $this->buatBarang();
             $this->buatPembelian();
+            $this->buatTagihan();
             $this->serahkanAset();
             $this->tarikSebagian();
             $this->buatServis();
@@ -198,6 +212,17 @@ class DemoDataSeeder extends Seeder
      */
     protected function buatPenggunaCabang(): void
     {
+        // Pemisahan tugas: pengaju pesanan bukan penyetujunya.
+        $this->pengadaan = User::firstOrCreate(
+            ['email' => 'pengadaan@indosurta.test'],
+            [
+                'name' => 'Staf Pengadaan',
+                'password' => Hash::make(self::KATA_SANDI_DEMO),
+                'role' => 'admin_pusat',
+                'is_active' => true,
+            ]
+        );
+
         User::firstOrCreate(
             ['email' => 'batam@indosurta.test'],
             [
@@ -257,7 +282,6 @@ class DemoDataSeeder extends Seeder
      */
     protected function buatPembelian(): void
     {
-        $service = app(AssetService::class);
         $vendorJkt = Vendor::where('name', 'Sinar Terang Komputer')->value('id');
         $vendorBtm = Vendor::where('name', 'Batam Jaya Elektronik')->value('id');
 
@@ -320,20 +344,187 @@ class DemoDataSeeder extends Seeder
                 ];
             }
 
-            $unitBaru = $service->receivePurchase([
-                'product_id' => $produk->id,
-                'branch_id' => $this->branches[$cabang]->id,
-                'vendor_id' => $cabang === 'BTM' ? $vendorBtm : $vendorJkt,
-                'invoice_number' => 'INV/'.$tanggalBeli->format('Y/m').'/'.str_pad((string) $urut, 3, '0', STR_PAD_LEFT),
-                'purchase_date' => $tanggalBeli,
-                'unit_price' => $harga,
-                'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
-            ], $units);
+            $unitBaru = $this->lewatiPengadaan(
+                produk: $produk,
+                units: $units,
+                harga: $harga,
+                garansiBulan: $garansiBulan,
+                cabang: $cabang,
+                vendorId: $cabang === 'BTM' ? $vendorBtm : $vendorJkt,
+                tanggal: $tanggalBeli,
+            );
 
             $this->units[$kunciBarang] = isset($this->units[$kunciBarang])
                 ? $this->units[$kunciBarang]->concat($unitBaru)
                 : $unitBaru;
         }
+    }
+
+    /**
+     * Satu pembelian menempuh alur penuh: pesanan diajukan, disetujui, lalu
+     * barangnya diterima. Unit aset lahir dari penerimaan itu.
+     *
+     * Data simulasi sengaja memakai jalur yang sama dengan pengguna, bukan
+     * jalan pintas, supaya dokumen pesanan dan penerimaannya ikut terisi.
+     *
+     * @param  array<int, array<string, mixed>>  $units
+     * @return Collection<int, Asset>
+     */
+    protected function lewatiPengadaan(
+        Product $produk,
+        array $units,
+        float $harga,
+        int $garansiBulan,
+        string $cabang,
+        ?int $vendorId,
+        Carbon $tanggal,
+    ): Collection {
+        // Pengajuan dan persetujuan dipisah: pengaju tidak boleh menyetujui
+        // pengajuannya sendiri.
+        Auth::login($this->pengadaan);
+
+        $po = PurchaseOrder::create([
+            'branch_id' => $this->branches[$cabang]->id,
+            'vendor_id' => $vendorId,
+            'payment_term_id' => PaymentTerm::where('code', 'net30')->value('id'),
+            'po_date' => $tanggal->copy()->subDays(7),
+            'expected_date' => $tanggal,
+            'status' => 'draft',
+            'created_by' => $this->pengadaan->id,
+        ]);
+
+        $poItem = $po->items()->create([
+            'product_id' => $produk->id,
+            'quantity' => count($units),
+            'unit_price' => $harga,
+            'tax_percent' => $produk->category->code_prefix === 'LSS' ? 0 : 11,
+            'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
+        ]);
+
+        $poService = app(PurchaseOrderService::class);
+        $po = $poService->submit($po->refresh());
+
+        Auth::login($this->admin);
+        $po = $poService->approve($po);
+
+        $gr = GoodsReceipt::create([
+            'purchase_order_id' => $po->id,
+            'branch_id' => $po->branch_id,
+            'vendor_id' => $vendorId,
+            'receipt_date' => $tanggal,
+            'delivery_document_number' => 'SJ/'.$tanggal->format('Y/m').'/'.str_pad((string) $po->id, 3, '0', STR_PAD_LEFT),
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+
+        foreach ($units as $unit) {
+            $gr->items()->create([
+                'purchase_order_item_id' => $poItem->id,
+                'product_id' => $produk->id,
+                'serial_number' => $unit['serial_number'],
+                'imei_1' => $unit['imei_1'],
+                'unit_price' => $harga,
+                'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
+            ]);
+        }
+
+        $gr = app(GoodsReceiptService::class)->receive($gr->refresh());
+
+        $this->receipts[] = $gr;
+
+        return Asset::withoutGlobalScopes()
+            ->whereIn('id', $gr->items()->pluck('asset_id')->filter())
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Tagihan vendor beserta pembayarannya, dibuat dengan keadaan bermacam-macam
+     * supaya laporan Hutang Vendor punya isi yang layak dilihat.
+     */
+    protected function buatTagihan(): void
+    {
+        Auth::login($this->admin);
+
+        $invoiceService = app(PurchaseInvoiceService::class);
+        $paymentService = app(VendorPaymentService::class);
+
+        // Penerimaan terbaru per vendor, diurutkan dari yang paling belakang.
+        $perVendor = collect($this->receipts)
+            ->filter(fn (GoodsReceipt $gr): bool => $gr->vendor_id !== null)
+            ->sortByDesc(fn (GoodsReceipt $gr) => $gr->receipt_date)
+            ->groupBy('vendor_id');
+
+        $urut = 0;
+        $faktur = [];
+
+        // Tiap vendor ditagih dua kali, masing-masing mencakup dua penerimaan
+        // sekaligus — itulah kebiasaan vendor langganan.
+        foreach ($perVendor as $vendorId => $daftar) {
+            foreach ($daftar->chunk(2)->take(2) as $terpilih) {
+                $urut++;
+                $tanggalFaktur = $terpilih->first()->receipt_date->copy()->addDays(3);
+
+                $faktur[] = $invoiceService->create([
+                    'invoice_number' => 'INV/'.$tanggalFaktur->format('Y/m').'/'.str_pad((string) $urut, 3, '0', STR_PAD_LEFT),
+                    'vendor_id' => $vendorId,
+                    'branch_id' => $terpilih->first()->branch_id,
+                    'payment_term_id' => PaymentTerm::where('code', 'net30')->value('id'),
+                    'invoice_date' => $tanggalFaktur,
+                    'total_amount' => $this->nilaiPenerimaan($terpilih),
+                ], $terpilih->pluck('id')->all());
+            }
+        }
+
+        if ($faktur === []) {
+            return;
+        }
+
+        // Faktur pertama dilunasi penuh.
+        $lunas = $faktur[0];
+        $paymentService->pay([
+            'vendor_id' => $lunas->vendor_id,
+            'branch_id' => $lunas->branch_id,
+            'payment_date' => $lunas->invoice_date->copy()->addDays(10),
+            'amount' => (float) $lunas->total_amount,
+            'payment_method' => 'transfer',
+            'reference_number' => 'TRF/BCA/882140',
+            'notes' => 'Pelunasan sesuai faktur.',
+        ], [['purchase_invoice_id' => $lunas->id, 'amount' => (float) $lunas->total_amount]]);
+
+        // Faktur kedua dibayar sebagian, sisanya jadi hutang berjalan.
+        if (isset($faktur[1])) {
+            $sebagian = $faktur[1];
+            $separuh = round((float) $sebagian->total_amount * 0.4);
+
+            $paymentService->pay([
+                'vendor_id' => $sebagian->vendor_id,
+                'branch_id' => $sebagian->branch_id,
+                'payment_date' => $sebagian->invoice_date->copy()->addDays(14),
+                'amount' => $separuh,
+                'payment_method' => 'transfer',
+                'reference_number' => 'TRF/BCA/882199',
+                'notes' => 'Pembayaran tahap pertama.',
+            ], [['purchase_invoice_id' => $sebagian->id, 'amount' => $separuh]]);
+        }
+
+        // Satu faktur sengaja dibiarkan lewat jatuh tempo tanpa pembayaran,
+        // supaya penyaring "lewat jatuh tempo" ada isinya.
+        if (isset($faktur[2])) {
+            $faktur[2]->update(['due_date' => now()->subDays(12)]);
+        }
+    }
+
+    /**
+     * Nilai beberapa penerimaan, dijumlahkan dari harga tiap unitnya.
+     *
+     * @param  Collection<int, GoodsReceipt>  $receipts
+     */
+    protected function nilaiPenerimaan(Collection $receipts): float
+    {
+        return (float) $receipts->sum(
+            fn (GoodsReceipt $gr): float => (float) $gr->items()->sum('unit_price')
+        );
     }
 
     /**
@@ -724,6 +915,9 @@ class DemoDataSeeder extends Seeder
             'Barang (katalog)' => Product::count(),
             'Pembelian (batch)' => PurchaseBatch::withoutGlobalScopes()->count(),
             'Unit aset' => Asset::withoutGlobalScopes()->count(),
+            'Pesanan pembelian' => PurchaseOrder::withoutGlobalScopes()->count(),
+            'Penerimaan barang' => GoodsReceipt::withoutGlobalScopes()->count(),
+            'Faktur vendor' => PurchaseInvoice::withoutGlobalScopes()->count(),
             'Surat serah terima' => HandoverDocument::withoutGlobalScopes()->count(),
             'Transaksi' => AssetTransaction::count(),
             'Catatan servis' => \App\Models\AssetService::count(),
@@ -747,10 +941,12 @@ class DemoDataSeeder extends Seeder
         $this->command->line('  - 1 surat serah terima berstatus draf');
         $this->command->line('  - 4 lampiran berkas, salah satunya tertaut ke catatan servis');
         $this->command->line('  - 1 barang dibeli dua kali dengan harga berbeda');
+        $this->command->line('  - faktur vendor: lunas, dibayar sebagian, dan lewat jatuh tempo');
 
         $this->command->newLine();
         $this->command->line('Akun untuk masuk (kata sandi: '.self::KATA_SANDI_DEMO.'):');
         $this->command->line('  admin@indosurta.test   Admin Pusat');
         $this->command->line('  batam@indosurta.test   Admin Cabang Batam');
+        $this->command->line('  pengadaan@indosurta.test  Staf Pengadaan (pengaju PO)');
     }
 }

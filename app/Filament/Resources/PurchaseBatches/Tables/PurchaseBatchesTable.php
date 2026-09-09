@@ -3,17 +3,10 @@
 namespace App\Filament\Resources\PurchaseBatches\Tables;
 
 use App\Enums\Role;
-use App\Models\Condition;
 use App\Models\PurchaseBatch;
-use App\Services\AssetService;
-use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -81,44 +74,6 @@ class PurchaseBatchesTable
                     ->visible(fn () => auth()->user()->role === Role::AdminPusat),
             ])
             ->recordActions([
-                // Untuk sisa kiriman yang datang belakangan pada faktur yang sama.
-                Action::make('tambah_unit')
-                    ->label('Tambah Unit')
-                    ->icon('heroicon-o-plus')
-                    ->color('gray')
-                    ->modalHeading('Tambah Unit ke Pembelian Ini')
-                    ->modalDescription('Unit baru mewarisi harga, tanggal beli, dan garansi dari pembelian ini.')
-                    ->schema([
-                        Repeater::make('units')
-                            ->hiddenLabel()
-                            ->addActionLabel('Tambah Unit')
-                            ->defaultItems(1)
-                            ->minItems(1)
-                            ->columns(2)
-                            ->schema([
-                                TextInput::make('serial_number')
-                                    ->label('Nomor Seri')
-                                    ->distinct()
-                                    ->unique('assets', 'serial_number')
-                                    ->visible(fn ($livewire) => (bool) $livewire->getMountedActionRecord()?->product?->requiresSerialNumber()),
-                                Select::make('condition_id')
-                                    ->label('Kondisi')
-                                    ->options(fn () => Condition::pluck('name', 'id')),
-                            ]),
-                    ])
-                    ->action(function (PurchaseBatch $record, array $data) {
-                        try {
-                            $assets = app(AssetService::class)->addUnitsToBatch($record, $data['units'] ?? []);
-
-                            Notification::make()
-                                ->success()
-                                ->title($assets->count().' unit ditambahkan')
-                                ->body('Kode unit: '.$assets->pluck('asset_code')->join(', '))
-                                ->send();
-                        } catch (\Exception $e) {
-                            Notification::make()->danger()->title('Gagal')->body($e->getMessage())->send();
-                        }
-                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([

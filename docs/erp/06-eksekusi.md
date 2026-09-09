@@ -2,7 +2,7 @@
 
 Urutan pengerjaan, dampak ke kode yang ada, dan cakupan pengujian.
 
-## K3 — Nasib jalur penerimaan yang sekarang
+## K3 — Nasib jalur penerimaan yang sekarang — SUDAH DIKERJAKAN
 
 Setelah Goods Receipt aktif, akan ada tiga cara memasukkan aset:
 
@@ -46,10 +46,10 @@ migrasi lama tidak perlu disentuh kecuali untuk `purchase_batches`.
 Urutan ini mengikuti ketergantungan foreign key. Nomor 7 harus setelah 5 karena
 menunjuk `goods_receipts`.
 
-## Tahapan pengerjaan
+## Tahapan pengerjaan — selesai
 
-Dikerjakan berlapis, tiap lapis diuji sebelum lanjut — pola yang sama dengan
-perombakan skema kemarin.
+Dikerjakan berlapis, tiap lapis diuji sebelum lanjut. Seluruh empat tahap sudah
+dijalankan; suite pengujian naik dari 56 menjadi 113 tes.
 
 ### Tahap A — Master dan pesanan
 
@@ -105,10 +105,18 @@ seluruh laporan, seluruh ekspor, StatsOverview, AssetImporter
 Kelima belas berkas yang membaca `purchaseBatch` tetap bekerja apa adanya,
 karena GR mengisi tabel yang sama.
 
-## Pengujian
+## Pengujian — hasil akhir
 
-Suite sekarang 56 tes. Alur baru ini menambah kira-kira 30 tes lagi. Daftarnya
-ada di tiap berkas submodul; yang paling penting dijaga:
+Suite naik dari 56 menjadi **113 tes, 235 asersi**. Rinciannya:
+
+| Berkas | Tes |
+|---|---|
+| `PurchaseOrderTest` | 12 |
+| `GoodsReceiptTest` | 15 |
+| `PayableTest` | 18 |
+| `PanelAccessTest` | bertambah 12 halaman baru |
+
+Yang paling penting dijaga:
 
 - Unit hasil GR punya harga, tanggal beli, dan garansi yang benar — ini yang
   menjaga laporan nilai aset tetap jujur
@@ -133,16 +141,28 @@ bisa dibuka.
 
 Semuanya bisa ditambahkan belakangan tanpa membongkar struktur ini.
 
-## Keputusan yang menunggu
+## Keputusan — seluruhnya sudah diambil
 
-| Kode | Pertanyaan                                     | Rekomendasi                    |
-| ---- | ---------------------------------------------- | ------------------------------ |
-| K1   | Barang non-serial per unit atau per kuantitas? | per unit                       |
-| K2   | Harga aset baru dari mana?                     | GR menulis`purchase_batches` |
-| K3   | Menu Pembelian ditutup?                        | ya, sisakan arsip              |
-| K4   | Satu faktur boleh mencakup banyak GR?          | ya, pakai tabel penghubung     |
-| K5   | Satu pembayaran boleh melunasi banyak faktur?  | ya, pakai tabel alokasi        |
-| K6   | Siapa yang menyetujui PO?                      | admin pusat saja untuk Fase 1  |
+| Kode | Pertanyaan | Keputusan |
+| --- | --- | --- |
+| K1 | Barang non-serial per unit atau per kuantitas? | **per unit**; tabel stok gugur |
+| K2 | Harga aset baru dari mana? | **GR menulis `purchase_batches`** |
+| K3 | Menu Pembelian ditutup? | **ya**, jadi Arsip Pembelian |
+| K4 | Satu faktur boleh mencakup banyak GR? | **ya**, `purchase_invoice_receipts` |
+| K5 | Satu pembayaran boleh melunasi banyak faktur? | **ya**, `vendor_payment_allocations` |
+| K6 | Siapa yang menyetujui PO? | **admin pusat**, dan bukan pengajunya sendiri |
 
-Enam jawaban ini yang menentukan bentuk akhir migrasinya. Sebelum ada
-jawabannya, belum ada kode yang ditulis.
+## Yang muncul di luar rancangan awal
+
+Tiga hal yang baru ketahuan saat dikerjakan:
+
+**`document_counters` perlu kolom `series`.** Tanpa itu nomor PO dan nomor surat
+serah terima berebut deret yang sama. Rinciannya di
+[02-pengadaan.md](02-pengadaan.md).
+
+**`goods_receipt_items` perlu `unit_price` dan `warranty_months`.** Penerimaan
+tanpa pesanan tidak punya sumber harga; tanpa kolom ini unitnya akan bernilai
+Rp 0 — persis masalah yang K2 hindari.
+
+**Nama indeks unik harus ditulis pendek.** Nama otomatis Laravel untuk
+`purchase_invoice_receipts` mencapai 68 karakter, melewati batas 64 milik MySQL.

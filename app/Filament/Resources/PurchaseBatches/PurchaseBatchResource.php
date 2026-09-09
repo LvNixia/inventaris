@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\PurchaseBatches;
 
-use App\Filament\Resources\PurchaseBatches\Pages\CreatePurchaseBatch;
 use App\Filament\Resources\PurchaseBatches\Pages\EditPurchaseBatch;
 use App\Filament\Resources\PurchaseBatches\Pages\ListPurchaseBatches;
 use App\Filament\Resources\PurchaseBatches\Schemas\PurchaseBatchForm;
@@ -17,15 +16,29 @@ class PurchaseBatchResource extends Resource
 {
     protected static ?string $model = PurchaseBatch::class;
 
-    protected static ?string $modelLabel = 'Pembelian';
+    protected static ?string $modelLabel = 'Arsip Pembelian';
 
-    protected static ?string $pluralModelLabel = 'Pembelian';
+    protected static ?string $pluralModelLabel = 'Arsip Pembelian';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Manajemen Aset';
+    protected static \UnitEnum|string|null $navigationGroup = 'Pengadaan';
 
-    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-shopping-cart';
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 9;
+
+    /*
+     * Jalur pembelian manual ditutup sejak alur Pesanan → Penerimaan aktif.
+     *
+     * Dua tombol yang sama-sama menerima barang — satu tercatat hutangnya, satu
+     * tidak — akan berakhir dengan yang lebih cepat selalu menang. Daftarnya
+     * tetap terbuka supaya pembelian lama masih bisa dilihat, dan barisnya masih
+     * ditulis sistem: setiap penerimaan barang membuat batch di sini sebagai
+     * lapisan biaya unit.
+     */
+    public static function canCreate(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -48,7 +61,6 @@ class PurchaseBatchResource extends Resource
     {
         return [
             'index' => ListPurchaseBatches::route('/'),
-            'create' => CreatePurchaseBatch::route('/create'),
             'edit' => EditPurchaseBatch::route('/{record}/edit'),
         ];
     }

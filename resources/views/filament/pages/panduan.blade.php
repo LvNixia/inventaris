@@ -9,15 +9,17 @@
     $langkah = [
         ['Siapkan referensi', 'Kategori, Merek, Kondisi, Cabang, Karyawan, Vendor, Jenis Lampiran. <strong>Diisi sekali</strong> di awal.'],
         ['Daftarkan barang', 'Menu <strong>Barang</strong>. Satu baris per jenis, <strong>dipakai berulang</strong>.'],
-        ['Catat pembelian', 'Menu <strong>Pembelian</strong>. Unit dibuat <strong>otomatis</strong> dari daftar serial.'],
+        ['Pesan ke vendor', 'Menu <strong>Pesanan Pembelian</strong>. Diajukan lalu <strong>disetujui</strong>.'],
+        ['Terima barang', 'Menu <strong>Penerimaan Barang</strong>. Unit aset lahir di sini.'],
+        ['Catat tagihan', 'Menu <strong>Faktur Vendor</strong>, lalu <strong>Pembayaran</strong>.'],
         ['Serahkan ke karyawan', 'Buat surat <strong>draf</strong>, lalu <strong>Terbitkan</strong>.'],
         ['Tarik, servis, lampirkan', 'Semua aksi dan berkas ada di halaman <strong>Ubah</strong> aset.'],
-        ['Pantau laporan', 'Empat laporan, unduh <strong>XLSX</strong> atau <strong>PDF</strong>.'],
+        ['Pantau laporan', 'Enam laporan, unduh <strong>XLSX</strong> atau <strong>PDF</strong>.'],
     ];
 
     $peran = [
-        ['Admin Pusat', 'akses penuh', 'success', 'Melihat dan mengubah data seluruh cabang, membatalkan surat yang sudah terbit, serta memindahkan aset antar cabang.'],
-        ['Admin Cabang', 'terbatas cabang', 'info', 'Hanya melihat dan mengubah data pada cabangnya sendiri. Kolom Cabang terkunci otomatis saat mengisi formulir.'],
+        ['Admin Pusat', 'akses penuh', 'success', 'Melihat dan mengubah data seluruh cabang, menyetujui pesanan pembelian, membatalkan surat yang sudah terbit, memindahkan aset antar cabang, dan mengimpor data lama.'],
+        ['Admin Cabang', 'terbatas cabang', 'info', 'Hanya melihat dan mengubah data pada cabangnya sendiri. Boleh mengajukan pesanan pembelian, tetapi persetujuannya di tangan Admin Pusat. Kolom Cabang terkunci otomatis saat mengisi formulir.'],
         ['Peninjau', 'baca saja', 'gray', 'Hanya membaca data dan laporan, tanpa bisa mengubah apa pun.'],
     ];
 
@@ -29,13 +31,20 @@
         ['Barang tidak bisa diservis pada status ini.', 'Aset yang sedang dalam perjalanan antar cabang atau sudah dilepas tidak bisa dimasukkan servis.'],
         ['Nomor seri aset ... belum diisi; lengkapi dulu sebelum diserahkan.', 'Serial boleh dikosongkan saat barang diterima, tetapi wajib terisi sebelum unit diserahkan, dikirim antar cabang, atau ditinggal di tempat servis. Isi lewat Aset → Ubah.'],
         ['Aset ... masih dipegang ...; tarik kembali terlebih dahulu.', 'Satu unit hanya bisa dipegang satu orang. Tarik dulu dari pemegang sebelumnya.'],
+        ['PO yang Anda ajukan sendiri harus disetujui orang lain.', 'Pemisahan tugas: pengaju dan penyetuju pesanan tidak boleh orang yang sama. Minta Admin Pusat lain untuk menyetujui.'],
+        ['Nomor Seri belum diisi.', 'Muncul saat menyetujui penerimaan barang. Lengkapi serial tiap unit lebih dulu; penerimaan ditolak seluruhnya sampai lengkap.'],
+        ['Diterima sekian unit, sisa pesanan hanya sekian.', 'Jumlah yang diterima melebihi sisa pesanan. Periksa kembali jumlah barang yang benar-benar datang.'],
+        ['Alokasi untuk faktur ... melebihi sisa tagihannya.', 'Pembayaran tidak boleh melebihi sisa faktur. Kelebihan bayar harus dicatat terpisah, belum didukung pada tahap ini.'],
         ['Hanya cabang tujuan yang bisa mengonfirmasi penerimaan.', 'Tombol Terima hanya muncul bagi admin cabang tujuan, atau bagi Admin Pusat.'],
         ['Ada draft surat atas nama karyawan ini; hapus atau ganti dulu.', 'Selesaikan atau hapus surat draf yang memuat karyawan tersebut sebelum menonaktifkannya.'],
     ];
 
     $istilah = [
         ['Barang', 'Jenis barang di katalog, misalnya "Lenovo ThinkPad T14". Satu barang bisa dibeli berkali-kali.'],
-        ['Pembelian', 'Satu baris faktur. Menyimpan tanggal, harga satuan, vendor, dan garansi untuk unit yang lahir darinya.'],
+        ['Pesanan Pembelian (PO)', 'Dokumen pemesanan ke vendor. Bernomor setelah disetujui, dan isinya terkunci sejak diajukan.'],
+        ['Penerimaan Barang (GR)', 'Dokumen barang datang. Unit aset lahir saat penerimaan ini disetujui.'],
+        ['Faktur Vendor', 'Tagihan resmi dari vendor. Nomornya berasal dari vendor, bukan dibuat sistem.'],
+        ['Arsip Pembelian', 'Lapisan biaya tiap unit: tanggal, harga satuan, vendor, dan garansi. Ditulis sistem saat penerimaan disetujui.'],
         ['Unit', 'Satu barang fisik, punya kode aset sendiri. Inilah yang diserahkan, diservis, dan dilepas.'],
         ['Tersedia', 'Unit yang ada di gudang, tidak sedang dipegang, dan statusnya boleh dipindahtangankan.'],
         ['Dipegang', 'Unit yang sedang berada di tangan karyawan.'],
@@ -50,6 +59,8 @@
         ['Kepemilikan Aset', 'Daftar siapa memegang apa, termasuk penyaring khusus karyawan nonaktif yang masih memegang aset.'],
         ['Servis & Biaya', 'Lama pengerjaan dan biaya servis per aset atau per vendor, termasuk pekerjaan yang lewat estimasi.'],
         ['Mutasi & Pelepasan', 'Seluruh pergerakan aset per periode, nilai yang dihapusbukukan, dan kiriman antar cabang yang belum diterima.'],
+        ['Stok per Cabang', 'Jumlah unit tiap barang di tiap cabang, dipilah menurut keadaannya.'],
+        ['Hutang Vendor', 'Tagihan yang belum lunas, umur hutang, dan yang sudah lewat jatuh tempo.'],
     ];
 @endphp
 
@@ -110,7 +121,7 @@
             }
 
             @media (min-width: 64rem) {
-                .panduan-alur { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+                .panduan-alur { grid-template-columns: repeat(4, minmax(0, 1fr)); }
             }
 
             .panduan-alur-item {
@@ -214,7 +225,7 @@
 
         <x-filament::section collapsible>
             <x-slot name="heading">Peran pengguna</x-slot>
-            <x-slot name="description">Menentukan data mana yang bisa dilihat dan diubah.</x-slot>
+            <x-slot name="description">Menentukan data mana yang bisa dilihat dan diubah, serta siapa yang berhak menyetujui.</x-slot>
 
             @foreach ($peran as [$nama, $label, $warna, $keterangan])
                 <div class="panduan-peran">
@@ -228,7 +239,7 @@
         </x-filament::section>
 
         <x-filament::section collapsible>
-            <x-slot name="heading">1. Mendaftarkan barang dan mencatat pembelian</x-slot>
+            <x-slot name="heading">1. Dari pesanan sampai jadi aset</x-slot>
 
             <h3>Tiga lapis yang perlu dipahami</h3>
 
@@ -248,17 +259,52 @@
                 <li>Cukup sekali. Pembelian berikutnya tinggal memilih barang yang sama.</li>
             </ul>
 
-            <h3>Mencatat pembelian</h3>
+            <h3>Memesan ke vendor</h3>
 
             <ul>
-                <li>Buka <strong>Manajemen Aset → Pembelian</strong>, lalu klik <strong>Buat</strong>.</li>
-                <li>Pilih barangnya, lalu isi vendor, nomor faktur, tanggal, harga satuan, dan lama garansi. Tanggal akhir garansi dihitung otomatis.</li>
+                <li>Buka <strong>Pengadaan → Pesanan Pembelian</strong>, lalu klik <strong>Buat</strong>.</li>
+                <li>Pilih vendor. Syarat pembayarannya terisi otomatis dari data vendor, dan masih boleh diubah untuk pesanan ini saja.</li>
+                <li>Tambahkan barang beserta jumlah, harga satuan, PPN, dan lama garansi. PPN diisi per baris karena satu pesanan sering memuat barang kena pajak dan tidak.</li>
                 <li>
-                    Di bagian <strong>Unit yang Diterima</strong>, tambahkan satu baris per unit.
-                    <p>Untuk kategori bernomor seri, isi serialnya di tiap baris. Untuk kabel atau lisensi, cukup tambah baris sebanyak unit yang datang.</p>
+                    Simpan sebagai draf, lalu klik <strong>Ajukan</strong>.
+                    <p>Setelah diajukan, isinya terkunci. Admin Pusat yang menyetujui, dan <strong>tidak boleh orang yang sama dengan pengajunya</strong>.</p>
                 </li>
-                <li>Saat disimpan, unitnya dibuat sekaligus dengan kode masing-masing, contohnya <span class="panduan-kode">{{ $contoh['kodeAset'] }}</span>.</li>
+                <li>Saat disetujui, nomor PO terbit — contohnya <span class="panduan-kode">{{ $contoh['nomorPo'] }}</span> — dan pesanan siap dikirim ke vendor.</li>
             </ul>
+
+            <p>Kalau isinya keliru sebelum disetujui, penyetuju bisa menekan <strong>Kembalikan ke Draf</strong> beserta alasannya, lalu pengaju memperbaikinya.</p>
+
+            <h3>Menerima barang</h3>
+
+            <p>Di sinilah unit aset lahir. Sebelum penerimaan disetujui, belum ada satu pun aset yang dibuat.</p>
+
+            <ul>
+                <li>Buka <strong>Pengadaan → Penerimaan Barang</strong>, lalu klik <strong>Buat</strong>.</li>
+                <li>Pilih pesanannya. Cabang dan vendor terisi otomatis. Isi nomor surat jalan bila ada.</li>
+                <li>
+                    Tambahkan satu baris per unit yang datang, lalu pilih barangnya dari pesanan. Harga dan garansi ikut terisi.
+                    <p>Nomor seri boleh dikosongkan selama masih draf, jadi penerimaan bisa disimpan setengah jadi dan dilanjutkan besok.</p>
+                </li>
+                <li>
+                    Klik <strong>Setujui Penerimaan</strong>. Nomor penerimaan terbit — contohnya <span class="panduan-kode">{{ $contoh['nomorGr'] }}</span> — lalu unit aset dibuat sebanyak barisnya, masing-masing berkode sendiri seperti <span class="panduan-kode">{{ $contoh['kodeAset'] }}</span>, lengkap dengan harga dan garansi.
+                    <p>Bila ada baris yang nomor serinya masih kosong, penerimaan ditolak <strong>seluruhnya</strong> dan semua kekurangan disebutkan sekaligus. Tidak ada unit yang telanjur lahir.</p>
+                </li>
+            </ul>
+
+            <p>Menerima sebagian tidak masalah — pesanan otomatis berstatus <strong>Diterima Sebagian</strong>, dan sisanya bisa diterima lewat penerimaan berikutnya. Menerima melebihi sisa pesanan akan ditolak.</p>
+
+            <p>Pembelian mendadak, hibah, atau retur vendor yang tidak punya pesanan tetap bisa dicatat: kosongkan kolom Pesanan, lalu isi barang, harga, dan garansinya sendiri.</p>
+
+            <h3>Mencatat tagihan dan pembayaran</h3>
+
+            <ul>
+                <li>Buka <strong>Pengadaan → Faktur Vendor</strong>. Pilih vendor, isi nomor faktur dari vendor, lalu pilih penerimaan mana saja yang ditagih — boleh lebih dari satu.</li>
+                <li>Jatuh tempo dihitung otomatis dari syarat pembayaran. Nomor faktur ikut tersalin ke unit aset yang lahir dari penerimaan itu.</li>
+                <li>Buka <strong>Pengadaan → Pembayaran Vendor</strong> untuk mencatat pelunasan. Satu pembayaran boleh dialokasikan ke beberapa faktur sekaligus, karena satu transfer sering melunasi beberapa tagihan.</li>
+                <li>Status faktur berpindah sendiri: <strong>Belum Dibayar → Dibayar Sebagian → Lunas</strong>. Tidak ada yang perlu dipilih manual.</li>
+            </ul>
+
+            <p>Alokasi tidak boleh melebihi sisa tagihan, dan jumlah alokasi harus sama persis dengan nilai pembayaran. Keduanya mencegah kelebihan bayar yang sulit ditelusuri belakangan.</p>
 
             <h3>Memasukkan data aset yang sudah berjalan</h3>
 
@@ -289,9 +335,9 @@
 
             <h3>Menambah stok barang yang sudah ada</h3>
 
-            <p>Jangan membuat barang baru. Buat <strong>pembelian baru</strong> pada barang yang sama. Dengan begitu harga dan tanggal beli tiap batch tetap terpisah, sehingga nilai aset dan pengingat garansi tidak tercampur antar pembelian.</p>
+            <p>Jangan membuat barang baru. Buat <strong>pesanan baru</strong> pada barang yang sama, lalu terima barangnya seperti biasa. Dengan begitu harga dan tanggal beli tiap pembelian tetap terpisah, sehingga nilai aset dan pengingat garansi tidak tercampur antar pembelian.</p>
 
-            <p>Bila sisa kiriman datang belakangan pada faktur yang sama, pakai tombol <strong>Tambah Unit</strong> di daftar Pembelian. Unit baru mewarisi harga dan garansi dari pembelian itu.</p>
+            <p>Menu <strong>Arsip Pembelian</strong> hanya untuk melihat pembelian lama. Barisnya kini ditulis sistem setiap kali penerimaan barang disetujui, sebagai lapisan biaya tiap unit — tidak diisi manual lagi.</p>
         </x-filament::section>
 
         <x-filament::section collapsible>
@@ -440,7 +486,7 @@
 
         <x-filament::section collapsible collapsed>
             <x-slot name="heading">Pesan yang sering muncul dan artinya</x-slot>
-            <x-slot name="description">Penolakan ini disengaja, untuk menjaga catatan stok tetap masuk akal.</x-slot>
+            <x-slot name="description">Penolakan ini disengaja, untuk menjaga catatan aset dan hutang tetap masuk akal.</x-slot>
 
             @foreach ($aturan as [$pesan, $penjelasan])
                 <div class="panduan-pesan">
@@ -467,7 +513,7 @@
         </x-filament::section>
 
         <x-filament::section collapsible collapsed>
-            <x-slot name="heading">Istilah pada kolom stok</x-slot>
+            <x-slot name="heading">Istilah yang dipakai aplikasi</x-slot>
 
             <ul>
                 @foreach ($istilah as [$kata, $arti])
@@ -484,7 +530,20 @@
 
             <p>Buka <strong>Laporan → Pemeriksaan Data</strong>, lalu klik <strong>Jalankan Pemeriksaan</strong>.</p>
 
-            <p>Halaman itu menelusuri seluruh aset dan transaksi, lalu melaporkan kejanggalan seperti stok bernilai negatif atau jumlah masuk yang melebihi jumlah keluar, beserta kode aset yang perlu diperiksa.</p>
+            <p>Halaman itu menelusuri seluruh unit aset, catatan servis, dan tagihan vendor, lalu melaporkan kejanggalan beserta kode dokumen yang perlu diperiksa. Delapan hal yang diawasi:</p>
+
+            <ul>
+                <li>Unit wajib bernomor seri tetapi belum diisi</li>
+                <li>Unit tercatat dipegang seseorang padahal statusnya Gudang atau Baru Didaftarkan</li>
+                <li>Unit sudah dilepas tetapi masih tercatat dipegang</li>
+                <li>Unit belum punya status sama sekali</li>
+                <li>Catatan servis masih terbuka padahal unitnya sudah dilepas</li>
+                <li>Unit belum tertaut ke pembelian, sehingga hilang dari perhitungan nilai aset</li>
+                <li>Nilai terbayar pada faktur tidak cocok dengan jumlah pembayarannya</li>
+                <li>Faktur berstatus lunas padahal nilai terbayarnya kurang</li>
+            </ul>
+
+            <p style="margin-top: 0.75rem;">Dua yang terakhir mengawasi angka hutang. Nilai terbayar disimpan di faktur supaya daftar hutang tidak perlu menjumlah ulang tiap kali dibuka; pemeriksaan ini yang memastikan angka simpanan itu tidak pernah menyimpang dari pembayaran yang sebenarnya.</p>
         </x-filament::section>
     </div>
 </x-filament-panels::page>
