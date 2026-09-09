@@ -1,58 +1,205 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Sistem Inventaris Aset
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi pencatatan aset IT: pendaftaran aset, serah terima ke karyawan, servis dan upgrade, mutasi antar cabang, pelepasan aset, lampiran berkas, serta laporan yang bisa dicetak dan diekspor.
 
-## About Laravel
+Dibangun dengan Laravel 13 dan Filament 5. Seluruh antarmuka berada di panel admin — tidak ada halaman publik.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Kebutuhan Sistem
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Kebutuhan | Versi | Catatan |
+|---|---|---|
+| PHP | 8.3 atau lebih baru | ekstensi standar Laravel: `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `gd` |
+| Composer | 2.x | |
+| MySQL / MariaDB | MySQL 8.x | |
+| Node.js | 20 atau lebih baru | hanya untuk membangun aset front-end |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Ekstensi `gd` dipakai DomPDF saat menghasilkan berkas PDF laporan. Ekstensi `fileinfo` dipakai untuk mendeteksi tipe berkas lampiran.
 
-## Learning Laravel
+Pengguna Laragon, XAMPP, atau Herd sudah mendapat PHP, MySQL, dan Composer sekaligus.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Langkah Pemasangan
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 1. Ambil kode dan pasang dependensi
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone <url-repositori> inventaris
+cd inventaris
+composer install
+npm install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### 2. Siapkan berkas konfigurasi
 
-## Contributing
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+### 3. Arahkan ke MySQL
 
-## Code of Conduct
+`.env.example` bawaan Laravel memakai SQLite. Aplikasi ini memakai MySQL, jadi ubah bagian database di `.env` menjadi:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```dotenv
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=inventaris
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-## Security Vulnerabilities
+Sesuaikan `DB_USERNAME` dan `DB_PASSWORD` dengan MySQL di komputer kamu.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Sekalian sesuaikan identitas aplikasi:
 
-## License
+```dotenv
+APP_NAME="Inventaris Aset"
+APP_URL=http://localhost:8000
+APP_LOCALE=id
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+`APP_LOCALE=id` membuat pesan validasi dan format tanggal Filament tampil dalam bahasa Indonesia.
+
+### 4. Buat database
+
+Buat database kosong bernama `inventaris` lewat phpMyAdmin, HeidiSQL, atau baris perintah:
+
+```bash
+mysql -u root -e "CREATE DATABASE inventaris CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+### 5. Jalankan migrasi dan isi data master
+
+```bash
+php artisan migrate
+php artisan db:seed --class=MasterSeeder
+```
+
+`MasterSeeder` wajib dijalankan. Isinya data acuan yang dipakai seluruh aplikasi: status aset, kategori, kondisi, alasan pelepasan, jenis servis, hasil servis, jenis lampiran, dan dua cabang awal (Jakarta dan Batam). Tanpa ini form aset tidak punya pilihan apa pun.
+
+### 6. Bangun aset front-end
+
+```bash
+npm run build
+```
+
+CSS panel admin (`public/css/`) sudah ikut tersimpan di repositori, jadi panel tetap tampil rapi walau langkah ini dilewati. Membangun aset tetap disarankan agar konsisten.
+
+## Mengisi Data Simulasi
+
+Opsional, tapi sangat membantu untuk mencoba aplikasi dan melihat laporan terisi.
+
+```bash
+php artisan db:seed --class=DemoDataSeeder
+```
+
+Seeder ini menolak berjalan bila `APP_ENV=production` atau bila tabel aset sudah berisi data.
+
+Isinya 21 aset, 12 karyawan, 8 surat serah terima, 28 transaksi, 4 catatan servis, dan 4 lampiran — dibuat lewat service aplikasi yang sama dengan yang dipakai antarmuka, sehingga perhitungan stok dan riwayat transaksinya konsisten.
+
+Skenario yang sengaja disiapkan agar laporan tidak kosong:
+
+- 2 karyawan nonaktif yang masih memegang aset
+- 1 servis yang lewat estimasi dan 1 servis yang masih berjalan
+- 1 pengiriman antar cabang yang belum diterima
+- 1 aset rusak yang menunggu penjadwalan servis
+- pelepasan aset dengan alasan dibuang dan hilang
+- 1 surat serah terima yang masih berstatus draf
+- lampiran berkas, salah satunya tertaut ke catatan servis
+
+Seeder ini juga membuat dua akun:
+
+| Email | Peran | Kata sandi |
+|---|---|---|
+| `admin@indosurta.test` | Admin Pusat | `password` |
+| `batam@indosurta.test` | Admin Cabang Batam | `password` |
+
+Akun cabang berguna untuk mencoba pembatasan data per cabang: pengguna cabang hanya melihat aset milik cabangnya.
+
+Kata sandi di atas lemah dan hanya untuk pengembangan lokal. Jangan pakai seeder ini di server produksi.
+
+### Membangun ulang dari nol
+
+```bash
+php artisan migrate:fresh
+php artisan db:seed --class=MasterSeeder
+php artisan db:seed --class=DemoDataSeeder
+```
+
+`php artisan migrate:fresh --seed` **tidak** cukup — perintah itu hanya menjalankan `DatabaseSeeder`, yang isinya sekadar satu akun uji berperan peninjau.
+
+## Membuat Akun Pertama Tanpa Data Simulasi
+
+Kalau kamu memulai dengan database bersih dan melewati `DemoDataSeeder`, buat akun admin sendiri:
+
+```bash
+php artisan make:filament-user
+```
+
+Perintah itu membuat akun berperan `viewer`. Naikkan menjadi admin pusat lewat Tinker:
+
+```bash
+php artisan tinker --execute="App\Models\User::where('email','emailkamu@contoh.test')->update(['role' => 'admin_pusat']);"
+```
+
+Peran yang tersedia: `admin_pusat` (semua cabang), `admin_cabang` (satu cabang, wajib mengisi `branch_id`), dan `viewer` (hanya membaca).
+
+## Menjalankan Aplikasi
+
+```bash
+php artisan serve
+```
+
+Buka `http://localhost:8000`. Halaman depan langsung mengalihkan ke `/admin`.
+
+Untuk pengembangan dengan pemuatan ulang otomatis, jalankan server, antrean, dan Vite sekaligus:
+
+```bash
+composer dev
+```
+
+Pengguna Laragon cukup mengarahkan virtual host ke folder `public/` dan mengakses `http://inventaris.test/admin`.
+
+## Penyimpanan Lampiran
+
+Lampiran aset disimpan di disk privat `local`, yaitu `storage/app/private/asset-attachments/`. Berkas tidak dapat diakses langsung lewat URL; Filament menyajikannya lewat tautan bertanda tangan yang kedaluwarsa.
+
+Karena itu `php artisan storage:link` **tidak diperlukan** untuk fitur lampiran. Jalankan hanya bila kamu menambahkan fitur yang butuh berkas publik.
+
+Pastikan folder `storage/` dan `bootstrap/cache/` dapat ditulis oleh proses web server.
+
+## Perintah Harian
+
+```bash
+php artisan test              # menjalankan pengujian
+vendor/bin/pint               # merapikan gaya penulisan kode
+php artisan optimize:clear    # membersihkan cache konfigurasi, rute, dan tampilan
+php artisan filament:optimize-clear   # membersihkan cache komponen Filament
+```
+
+Bersihkan cache Filament setiap kali kamu mengubah `AppServiceProvider` atau berkas skema form dan tabel, lalu muat ulang browser dengan `Ctrl+Shift+R`.
+
+## Struktur Singkat
+
+| Lokasi | Isi |
+|---|---|
+| `app/Filament/Resources/` | Modul CRUD: aset, servis, transaksi, serah terima, karyawan, dan data master |
+| `app/Filament/Pages/Reports/` | Halaman laporan yang bisa dicetak dan diekspor |
+| `app/Services/` | Aturan bisnis: serah terima, servis, mutasi cabang, perhitungan stok |
+| `app/Filament/Support/AssetSelect.php` | Dropdown pemilih aset yang dipakai bersama beberapa form |
+| `database/seeders/MasterSeeder.php` | Data acuan, wajib dijalankan |
+| `database/seeders/DemoDataSeeder.php` | Data simulasi, opsional |
+
+Seluruh pergerakan aset ditulis lewat kelas di `app/Services/`, bukan lewat penyimpanan model langsung, supaya kolom stok (`qty_out`, `qty_in`, `qty_writeoff`, `qty_available`) dan riwayat transaksi selalu sejalan.
+
+## Masalah Umum
+
+**`SQLSTATE[HY000] [2002] No connection could be made`** — MySQL belum berjalan. Nyalakan lewat Laragon atau XAMPP.
+
+**Form aset kosong tanpa pilihan kategori, kondisi, atau cabang** — `MasterSeeder` belum dijalankan.
+
+**`DemoDataSeeder` berhenti dengan pesan tabel aset sudah berisi data** — memang disengaja agar data yang ada tidak tertimpa. Bangun ulang dengan `migrate:fresh` bila memang ingin mengganti isinya.
+
+**Perubahan pada form atau tabel tidak muncul** — jalankan `php artisan filament:optimize-clear`, lalu muat ulang browser dengan `Ctrl+Shift+R`.
+
+**`Tests\Feature\ExampleTest` gagal dengan status 302** — pengujian bawaan Laravel itu mengharapkan halaman depan membalas 200, padahal aplikasi ini mengalihkan `/` ke `/admin`. Bukan tanda pemasangan gagal; tiga pengujian lainnya lulus.
