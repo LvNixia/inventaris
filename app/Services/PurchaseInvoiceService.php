@@ -187,14 +187,13 @@ class PurchaseInvoiceService
     }
 
     /**
-     * Nilai sebuah penerimaan, dijumlahkan dari harga tiap unitnya.
+     * Nilai sebuah penerimaan.
+     *
+     * Perhitungannya menumpang atribut pada modelnya supaya formulir faktur
+     * menampilkan angka yang persis sama dengan yang tersimpan di sini.
      */
     protected function nilaiPenerimaan(GoodsReceipt $gr): float
     {
-        $gr->loadMissing('items.purchaseOrderItem');
-
-        return $gr->items->sum(
-            fn ($item): float => (float) ($item->unit_price ?? $item->purchaseOrderItem?->unit_price ?? 0)
-        );
+        return $gr->total_value;
     }
 }

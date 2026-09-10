@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Asset;
 use App\Models\AssetAttachment;
+use App\Models\AssetService;
 use App\Models\AssetStatus;
 use App\Models\AssetTransaction;
 use App\Models\AttachmentType;
@@ -834,7 +835,7 @@ class DemoDataSeeder extends Seeder
 
         $laptopServis = $this->unit('expertbook_b1400', 1);
 
-        $servisSelesai = \App\Models\AssetService::where('asset_id', $laptopServis->id)
+        $servisSelesai = AssetService::where('asset_id', $laptopServis->id)
             ->whereNotNull('finished_at')
             ->first();
 
@@ -920,7 +921,7 @@ class DemoDataSeeder extends Seeder
             'Faktur vendor' => PurchaseInvoice::withoutGlobalScopes()->count(),
             'Surat serah terima' => HandoverDocument::withoutGlobalScopes()->count(),
             'Transaksi' => AssetTransaction::count(),
-            'Catatan servis' => \App\Models\AssetService::count(),
+            'Catatan servis' => AssetService::count(),
             'Lampiran' => AssetAttachment::count(),
         ];
 

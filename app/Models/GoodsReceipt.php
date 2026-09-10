@@ -90,6 +90,40 @@ class GoodsReceipt extends Model
         return $this->items()->count();
     }
 
+    /**
+     * Nilai penerimaan ini, dijumlahkan dari harga tiap unitnya.
+     *
+     * Harga baris dipakai lebih dulu; kalau kosong, harga baris pesanannya yang
+     * dipakai. Dipakai bersama oleh formulir faktur dan PurchaseInvoiceService,
+     * supaya angka yang ditampilkan sama dengan angka yang tersimpan.
+     */
+    public function getTotalValueAttribute(): float
+    {
+        $this->loadMissing('items.purchaseOrderItem');
+
+        return (float) $this->items->sum(
+            fn (GoodsReceiptItem $item): float => (float) ($item->unit_price
+                ?? $item->purchaseOrderItem?->unit_price
+                ?? 0)
+        );
+    }
+
+    /**
+     * Penerimaan yang belum tercakup faktur mana pun yang masih berlaku.
+     *
+     * Faktur yang dibatalkan tidak dihitung, jadi penerimaannya kembali bisa
+     * ditagihkan lewat faktur baru.
+     */
+    public function scopeBelumDitagih($query, ?int $kecualiInvoiceId = null)
+    {
+        return $query->whereDoesntHave(
+            'purchaseInvoices',
+            fn ($invoice) => $invoice->withoutGlobalScopes()
+                ->where('purchase_invoices.status', '!=', 'cancelled')
+                ->when($kecualiInvoiceId, fn ($q) => $q->where('purchase_invoices.id', '!=', $kecualiInvoiceId)),
+        );
+    }
+
     protected static function booted(): void
     {
         static::addGlobalScope(new BranchScope);
