@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\PurchaseInvoice;
 use App\Models\VendorPayment;
 use Exception;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -54,7 +55,17 @@ class VendorPaymentService
                 ));
             }
 
-            $this->pastikanAlokasiSah($alokasi, (int) $data['vendor_id']);
+            // Faktur dikunci sebelum sisanya diperiksa. Tanpa ini dua pembayaran
+            // bersamaan atas faktur yang sama bisa lolos pemeriksaan berdua,
+            // lalu keduanya tersimpan — kelebihan bayar yang justru dicegah
+            // aturan di bawah.
+            $faktur = PurchaseInvoice::withoutGlobalScopes()
+                ->whereIn('id', array_column($alokasi, 'purchase_invoice_id'))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $this->pastikanAlokasiSah($alokasi, (int) $data['vendor_id'], $faktur);
 
             $branch = Branch::findOrFail($data['branch_id']);
 
@@ -122,10 +133,11 @@ class VendorPaymentService
 
     /**
      * @param  array<int, array{purchase_invoice_id: int, amount: float|string}>  $alokasi
+     * @param  Collection<int, PurchaseInvoice>  $faktur  Faktur yang sudah dikunci pemanggil.
      *
      * @throws Exception
      */
-    protected function pastikanAlokasiSah(array $alokasi, int $vendorId): void
+    protected function pastikanAlokasiSah(array $alokasi, int $vendorId, $faktur): void
     {
         $errors = [];
         $sudahDipakai = [];
@@ -141,7 +153,7 @@ class VendorPaymentService
 
             $sudahDipakai[] = $invoiceId;
 
-            $invoice = PurchaseInvoice::withoutGlobalScopes()->find($invoiceId);
+            $invoice = $faktur->get($invoiceId);
 
             if (! $invoice) {
                 $errors[] = "Faktur #{$invoiceId} tidak ditemukan.";

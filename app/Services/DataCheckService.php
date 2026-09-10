@@ -40,16 +40,21 @@ class DataCheckService
      */
     protected function fakturDenganTerbayarTidakCocok(): array
     {
+        // Jumlah alokasi dihitung lewat subkueri, bukan satu kueri per faktur:
+        // halaman ini menelusuri seluruh tabel, jadi pola per-baris akan
+        // menembak ribuan kueri begitu datanya bertumbuh.
         return PurchaseInvoice::query()
             ->with('vendor')
+            ->withSum([
+                'allocations as alokasi_sah' => fn ($query) => $query->whereHas(
+                    'vendorPayment',
+                    fn ($payment) => $payment->withoutGlobalScopes()->whereNull('cancelled_at'),
+                ),
+            ], 'amount')
             ->get()
-            ->filter(function (PurchaseInvoice $invoice): bool {
-                $alokasi = (float) $invoice->allocations()
-                    ->whereHas('vendorPayment', fn ($q) => $q->withoutGlobalScopes()->whereNull('cancelled_at'))
-                    ->sum('amount');
-
-                return abs($alokasi - (float) $invoice->paid_amount) > 0.5;
-            })
+            ->filter(fn (PurchaseInvoice $invoice): bool => abs(
+                (float) ($invoice->alokasi_sah ?? 0) - (float) $invoice->paid_amount
+            ) > 0.5)
             ->map(fn (PurchaseInvoice $invoice): array => [
                 'type' => 'Faktur',
                 'id' => $invoice->id,

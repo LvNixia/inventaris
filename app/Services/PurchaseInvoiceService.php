@@ -60,7 +60,9 @@ class PurchaseInvoiceService
      */
     public function tautkanPenerimaan(PurchaseInvoice $invoice, array $goodsReceiptIds): void
     {
-        foreach (array_filter($goodsReceiptIds) as $grId) {
+        $diminta = array_map('intval', array_filter($goodsReceiptIds));
+
+        foreach ($diminta as $grId) {
             $gr = GoodsReceipt::withoutGlobalScopes()->find($grId);
 
             if (! $gr) {
@@ -84,6 +86,40 @@ class PurchaseInvoiceService
                 ->whereNull('invoice_number')
                 ->update(['invoice_number' => $invoice->invoice_number]);
         }
+
+        // Daftar yang dikirim adalah keadaan akhir yang diinginkan, bukan
+        // tambahan. Tanpa langkah ini, penerimaan yang dihapus pengguna dari
+        // formulir tetap tertaut diam-diam.
+        $dilepas = $invoice->receipts()
+            ->when($diminta !== [], fn ($query) => $query->whereNotIn('goods_receipt_id', $diminta))
+            ->pluck('goods_receipt_id')
+            ->all();
+
+        if ($dilepas !== []) {
+            $invoice->receipts()->whereIn('goods_receipt_id', $dilepas)->delete();
+
+            $this->lepaskanNomorFaktur($invoice, $dilepas);
+        }
+    }
+
+    /**
+     * Tarik kembali nomor faktur dari batch pembelian penerimaan tertentu.
+     *
+     * Nomor itu ikut terbaca sebagai `Asset::invoice_number` pada laporan dan
+     * ekspor, jadi ia harus lepas begitu penerimaannya tidak lagi ditagih oleh
+     * faktur ini.
+     *
+     * @param  array<int, int>  $goodsReceiptIds
+     */
+    protected function lepaskanNomorFaktur(PurchaseInvoice $invoice, array $goodsReceiptIds): void
+    {
+        if ($goodsReceiptIds === []) {
+            return;
+        }
+
+        PurchaseBatch::whereIn('goods_receipt_id', $goodsReceiptIds)
+            ->where('invoice_number', $invoice->invoice_number)
+            ->update(['invoice_number' => null]);
     }
 
     /**
@@ -134,6 +170,11 @@ class PurchaseInvoiceService
             if ((float) $invoice->paid_amount > 0) {
                 throw new Exception('Faktur sudah menerima pembayaran; batalkan pembayarannya terlebih dahulu.');
             }
+
+            // Nomor faktur yang batal tidak boleh tetap menempel pada unit aset;
+            // kalau dibiarkan, laporan dan ekspor menyebut nomor yang sudah
+            // tidak berlaku.
+            $this->lepaskanNomorFaktur($invoice, $invoice->receipts()->pluck('goods_receipt_id')->all());
 
             $invoice->update([
                 'status' => 'cancelled',

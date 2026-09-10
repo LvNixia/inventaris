@@ -47,6 +47,8 @@ class GoodsReceiptService
                 throw new Exception('Penerimaan belum berisi unit apa pun.');
             }
 
+            $this->pastikanPesananSiapDiterima($gr->purchaseOrder);
+
             $this->pastikanSah($gr);
 
             $gr->update([
@@ -108,9 +110,13 @@ class GoodsReceiptService
 
             $units = Asset::withoutGlobalScopes()->whereIn('id', $assetIds)->get();
 
+            // Lampiran ikut diperiksa: berkasnya menunjuk ke aset lewat foreign
+            // key, jadi tanpa pemeriksaan ini penghapusan gagal di tengah jalan
+            // dengan pesan basis data yang tidak bisa dipahami pengguna.
             $terpakai = $units->filter(fn (Asset $unit): bool => $unit->assetTransactions()->exists()
                 || $unit->handoverItems()->exists()
-                || $unit->assetServices()->exists());
+                || $unit->assetServices()->exists()
+                || $unit->attachments()->exists());
 
             if ($terpakai->isNotEmpty()) {
                 throw new Exception(
@@ -139,6 +145,31 @@ class GoodsReceiptService
 
             return $gr->refresh();
         });
+    }
+
+    /**
+     * Penerimaan hanya boleh menumpang pesanan yang memang sedang berjalan.
+     *
+     * Tanpa penjagaan ini, penerimaan berstatus draf yang dibuat sebelum
+     * pesanannya dibatalkan tetap bisa disetujui: unit asetnya lahir, sementara
+     * pesanannya tetap tercatat batal sehingga penerimaan itu tidak terlihat
+     * di mana pun.
+     *
+     * @throws Exception
+     */
+    protected function pastikanPesananSiapDiterima(?PurchaseOrder $po): void
+    {
+        if (! $po) {
+            return; // Penerimaan tanpa pesanan memang diizinkan.
+        }
+
+        if ($po->status === 'cancelled') {
+            throw new Exception("Pesanan {$po->po_number} sudah dibatalkan, jadi barangnya tidak bisa diterima.");
+        }
+
+        if (! $po->isApproved()) {
+            throw new Exception("Pesanan {$po->po_number} belum disetujui; setujui dulu sebelum menerima barangnya.");
+        }
     }
 
     /**

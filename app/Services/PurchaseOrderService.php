@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\Role;
+use App\Models\GoodsReceipt;
 use App\Models\PurchaseOrder;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -190,6 +191,22 @@ class PurchaseOrderService
             // hanya dengan membatalkan pesanannya.
             if ($po->status === 'partial_receipt') {
                 throw new Exception('PO sudah punya penerimaan barang; batalkan penerimaannya terlebih dahulu.');
+            }
+
+            // Penerimaan berstatus draf pun menghalangi: bila dibiarkan, ia masih
+            // bisa disetujui belakangan dan melahirkan unit atas pesanan yang
+            // sudah tidak berlaku.
+            $penerimaan = GoodsReceipt::withoutGlobalScopes()
+                ->where('purchase_order_id', $po->id)
+                ->where('status', '!=', 'cancelled')
+                ->get();
+
+            if ($penerimaan->isNotEmpty()) {
+                throw new Exception(
+                    'PO masih punya '.$penerimaan->count().' penerimaan barang yang belum dibatalkan: '
+                    .$penerimaan->map(fn (GoodsReceipt $gr): string => $gr->gr_number ?? 'draf #'.$gr->id)->join(', ')
+                    .'. Batalkan atau hapus penerimaannya terlebih dahulu.'
+                );
             }
 
             $po->update([

@@ -18,6 +18,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\RawJs;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rules\Unique;
 
 /**
  * Formulir tagihan vendor.
@@ -55,7 +56,19 @@ class PurchaseInvoiceForm
                         TextInput::make('invoice_number')
                             ->label('Nomor Faktur')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            // Keunikannya berpasangan dengan vendor: dua vendor
+                            // boleh memakai nomor yang sama. Tanpa aturan ini,
+                            // nomor kembar muncul sebagai galat basis data
+                            // alih-alih pesan di bawah kolomnya.
+                            ->unique(
+                                ignoreRecord: true,
+                                modifyRuleUsing: fn (Unique $rule, Get $get): Unique => $rule
+                                    ->where('vendor_id', $get('vendor_id')),
+                            )
+                            ->validationMessages([
+                                'unique' => 'Nomor faktur ini sudah tercatat untuk vendor tersebut.',
+                            ]),
 
                         Select::make('branch_id')
                             ->label('Cabang')
