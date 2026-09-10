@@ -279,10 +279,13 @@
             <p>Di sinilah unit aset lahir. Sebelum penerimaan disetujui, belum ada satu pun aset yang dibuat.</p>
 
             <ul>
-                <li>Buka <strong>Pengadaan → Penerimaan Barang</strong>, lalu klik <strong>Buat</strong>.</li>
-                <li>Pilih pesanannya. Cabang dan vendor terisi otomatis. Isi nomor surat jalan bila ada.</li>
                 <li>
-                    Tambahkan satu baris per unit yang datang, lalu pilih barangnya dari pesanan. Harga dan garansi ikut terisi.
+                    Cara tercepat: dari daftar <strong>Pesanan Pembelian</strong>, klik <strong>Buat Penerimaan</strong> pada pesanannya. Halaman penerimaan terbuka dengan pesanan, cabang, dan vendor sudah terisi, dan sisa unit yang belum diterima sudah menjadi baris — lengkap dengan harga serta garansinya.
+                    <p>Bisa juga lewat <strong>Pengadaan → Penerimaan Barang → Buat</strong>, lalu pilih pesanannya sendiri. Setelah pesanan terpilih, tombol <strong>Tarik Sisa Pesanan</strong> di atas tabel unit melakukan hal yang sama.</p>
+                </li>
+                <li>Isi nomor surat jalan bila ada.</li>
+                <li>
+                    Barang yang datang kurang dari yang dipesan? Hapus baris yang tidak jadi datang. Sisanya tetap bisa diterima lewat penerimaan berikutnya.
                     <p>Nomor seri boleh dikosongkan selama masih draf, jadi penerimaan bisa disimpan setengah jadi dan dilanjutkan besok.</p>
                 </li>
                 <li>
@@ -298,9 +301,20 @@
             <h3>Mencatat tagihan dan pembayaran</h3>
 
             <ul>
-                <li>Buka <strong>Pengadaan → Faktur Vendor</strong>. Pilih vendor, isi nomor faktur dari vendor, lalu pilih penerimaan mana saja yang ditagih — boleh lebih dari satu.</li>
+                <li>
+                    Cara tercepat: dari daftar <strong>Penerimaan Barang</strong>, klik <strong>Buat Faktur</strong> pada penerimaan yang sudah disetujui. Vendor, cabang, penerimaan, dan nilai tagihannya sudah terisi — tinggal mengetik nomor faktur dari vendor.
+                    <p>Bisa juga lewat <strong>Pengadaan → Faktur Vendor → Buat</strong>. Pilih vendor lebih dulu, lalu pilih penerimaan mana saja yang ditagih — boleh lebih dari satu, dan subtotalnya dijumlahkan sendiri.</p>
+                </li>
+                <li>Penerimaan yang sudah ditagih faktur lain tidak muncul lagi di daftar pilihan, jadi satu penerimaan tidak terbayar dua kali. Membatalkan fakturnya mengembalikan penerimaan itu ke daftar.</li>
+                <li>
+                    Cabang, syarat pembayaran, subtotal, dan PPN semuanya diturunkan dari pesanan di balik penerimaan itu — PPN dihitung dari persen pajak tiap barisnya.
+                    <p>Syarat pembayaran diambil dari <strong>pesanannya</strong>, bukan dari data vendor yang berlaku hari ini: yang mengikat adalah syarat saat pesanan disetujui. Semua angkanya tetap boleh ditimpa bila faktur vendor berbeda.</p>
+                </li>
                 <li>Jatuh tempo dihitung otomatis dari syarat pembayaran. Nomor faktur ikut tersalin ke unit aset yang lahir dari penerimaan itu.</li>
-                <li>Buka <strong>Pengadaan → Pembayaran Vendor</strong> untuk mencatat pelunasan. Satu pembayaran boleh dialokasikan ke beberapa faktur sekaligus, karena satu transfer sering melunasi beberapa tagihan.</li>
+                <li>
+                    Untuk melunasi, klik <strong>Bayar</strong> pada fakturnya. Vendor, cabang, alokasi, dan nilainya sudah terisi sebesar sisa tagihan — tinggal pilih metode dan isi nomor bukti.
+                    <p>Bisa juga lewat <strong>Pengadaan → Pembayaran Vendor</strong>. Satu pembayaran boleh dialokasikan ke beberapa faktur sekaligus, karena satu transfer sering melunasi beberapa tagihan; nilai pembayarannya dijumlahkan sendiri dari alokasi itu.</p>
+                </li>
                 <li>Status faktur berpindah sendiri: <strong>Belum Dibayar → Dibayar Sebagian → Lunas</strong>. Tidak ada yang perlu dipilih manual.</li>
             </ul>
 

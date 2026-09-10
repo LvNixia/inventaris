@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PurchaseInvoices\Tables;
 
 use App\Enums\Role;
+use App\Filament\Resources\VendorPayments\VendorPaymentResource;
 use App\Models\PurchaseInvoice;
 use App\Services\PurchaseInvoiceService;
 use Filament\Actions\Action;
@@ -103,6 +104,21 @@ class PurchaseInvoicesTable
                     ->query(fn (Builder $query): Builder => $query->outstanding()),
             ])
             ->recordActions([
+                Action::make('bayar')
+                    ->label('Bayar')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('primary')
+                    // Vendor, cabang, dan alokasi sisa tagihannya terisi
+                    // sendiri di halaman pembayaran.
+                    ->visible(fn (PurchaseInvoice $record): bool => in_array(
+                        $record->status,
+                        ['unpaid', 'partial'],
+                        true,
+                    ))
+                    ->url(fn (PurchaseInvoice $record): string => VendorPaymentResource::getUrl('create', [
+                        'purchase_invoice_id' => $record->id,
+                    ])),
+
                 Action::make('batalkan')
                     ->label('Batalkan')
                     ->icon('heroicon-o-x-circle')

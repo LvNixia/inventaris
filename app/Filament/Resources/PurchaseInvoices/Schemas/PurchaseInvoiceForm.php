@@ -57,6 +57,7 @@ class PurchaseInvoiceForm
                                 $set('payment_term_id', Vendor::find($state)?->payment_term_id);
                                 $set('goods_receipt_ids', []);
                                 $set('subtotal', 0);
+                                $set('tax', 0);
                                 $set('total_amount', 0);
                             }),
 
@@ -118,7 +119,7 @@ class PurchaseInvoiceForm
                     ]),
 
                 Section::make('Penerimaan yang Ditagih')
-                    ->description('Boleh lebih dari satu. Nilai tagihan di bawah ikut terisi dari penerimaan yang dipilih, dan nomor faktur ini tersalin ke unit aset yang lahir darinya.')
+                    ->description('Boleh lebih dari satu. Cabang, syarat pembayaran, nilai, dan PPN ikut terisi dari pesanan di balik penerimaan yang dipilih. Nomor faktur ini tersalin ke unit aset yang lahir darinya.')
                     ->schema([
                         Select::make('goods_receipt_ids')
                             ->hiddenLabel()
@@ -164,7 +165,8 @@ class PurchaseInvoiceForm
                             ->mask(RawJs::make("\$money(\$input, ',', '.', 0)"))
                             ->stripCharacters(['.', ','])
                             ->live(onBlur: true)
-                            ->afterStateUpdated(fn (Get $get, Set $set) => static::hitungTotal($get, $set)),
+                            ->afterStateUpdated(fn (Get $get, Set $set) => static::hitungTotal($get, $set))
+                            ->helperText('Dihitung dari persen PPN pada pesanannya; ubah bila vendor membulatkan berbeda.'),
 
                         TextInput::make('total_amount')
                             ->label('Total Tagihan')
@@ -222,13 +224,19 @@ class PurchaseInvoiceForm
     }
 
     /**
-     * Jumlahkan nilai penerimaan terpilih ke subtotal, lalu hitung totalnya.
+     * Salin seluruh isi penerimaan terpilih ke formulir.
      *
      * @param  array<int, int|string>|null  $ids
      */
     protected static function hitungNilai(mixed $ids, Get $get, Set $set): void
     {
-        $set('subtotal', static::nilaiTerpilih($ids));
+        $warisan = static::warisanPenerimaan($ids);
+
+        foreach ($warisan as $kolom => $nilai) {
+            if ($nilai !== null) {
+                $set($kolom, $nilai);
+            }
+        }
 
         static::hitungTotal($get, $set);
     }
@@ -239,11 +247,37 @@ class PurchaseInvoiceForm
     }
 
     /**
+     * Nilai yang diwarisi faktur dari penerimaan, dan lewat penerimaan itu dari
+     * pesanannya.
+     *
+     * Syarat pembayaran diambil dari pesanan, bukan dari data vendor yang
+     * berlaku sekarang: yang mengikat adalah syarat saat pesanan disetujui.
+     * PPN dihitung dari persentase pajak baris pesanannya, jadi tidak perlu
+     * diketik ulang.
+     *
      * @param  array<int, int|string>|null  $ids
+     * @return array{subtotal: float, tax: float, payment_term_id: int|null, branch_id: int|null}
      */
-    protected static function nilaiTerpilih(mixed $ids): float
+    public static function warisanPenerimaan(mixed $ids): array
     {
-        return static::penerimaanTerpilih($ids)->sum(fn (GoodsReceipt $gr): float => $gr->total_value);
+        $penerimaan = static::penerimaanTerpilih($ids);
+
+        $syarat = $penerimaan
+            ->map(fn (GoodsReceipt $gr): mixed => $gr->purchaseOrder?->payment_term_id
+                ?? $gr->vendor?->payment_term_id)
+            ->filter()
+            ->first();
+
+        // Cabang hanya diwarisi kalau seluruh penerimaannya dari cabang yang
+        // sama; kalau bercampur, biarkan pilihan pengguna yang menentukan.
+        $cabang = $penerimaan->pluck('branch_id')->filter()->unique();
+
+        return [
+            'subtotal' => (float) $penerimaan->sum(fn (GoodsReceipt $gr): float => $gr->total_value),
+            'tax' => (float) $penerimaan->sum(fn (GoodsReceipt $gr): float => $gr->tax_value),
+            'payment_term_id' => $syarat ? (int) $syarat : null,
+            'branch_id' => $cabang->count() === 1 ? (int) $cabang->first() : null,
+        ];
     }
 
     /**
@@ -265,7 +299,7 @@ class PurchaseInvoiceForm
 
         return GoodsReceipt::query()
             ->whereIn('id', $ids)
-            ->with('items.purchaseOrderItem')
+            ->with(['items.purchaseOrderItem', 'purchaseOrder', 'vendor'])
             ->orderByDesc('receipt_date')
             ->get();
     }

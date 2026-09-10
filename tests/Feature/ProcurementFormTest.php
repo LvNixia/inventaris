@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Filament\Resources\GoodsReceipts\Pages\CreateGoodsReceipt;
 use App\Filament\Resources\GoodsReceipts\Pages\EditGoodsReceipt;
 use App\Filament\Resources\PurchaseInvoices\Pages\CreatePurchaseInvoice;
+use App\Filament\Resources\VendorPayments\Pages\CreateVendorPayment;
 use App\Models\GoodsReceipt;
 use App\Models\PaymentTerm;
 use App\Models\Product;
@@ -12,6 +13,7 @@ use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\GoodsReceiptService;
+use App\Services\PurchaseInvoiceService;
 use App\Services\PurchaseOrderService;
 use Filament\Actions\Testing\TestAction;
 use Filament\Forms\Components\Select;
@@ -59,11 +61,17 @@ class ProcurementFormTest extends TestCase
     /**
      * Pesanan yang sudah disetujui, satu baris berisi $qty unit.
      */
-    protected function poDisetujui(Product $produk, int $qty = 3, float $harga = 10_000_000): PurchaseOrder
-    {
+    protected function poDisetujui(
+        Product $produk,
+        int $qty = 3,
+        float $harga = 10_000_000,
+        float $persenPajak = 0,
+        ?int $syaratId = null,
+    ): PurchaseOrder {
         $po = PurchaseOrder::create([
             'branch_id' => $this->cabang()->id,
             'vendor_id' => $this->vendor()->id,
+            'payment_term_id' => $syaratId,
             'po_date' => now(),
             'status' => 'draft',
             'created_by' => $this->admin->id,
@@ -73,6 +81,7 @@ class ProcurementFormTest extends TestCase
             'product_id' => $produk->id,
             'quantity' => $qty,
             'unit_price' => $harga,
+            'tax_percent' => $persenPajak,
             'warranty_months' => 12,
         ]);
 
@@ -272,5 +281,159 @@ class ProcurementFormTest extends TestCase
                 'subtotal' => 10_000_000,
                 'total_amount' => 11_100_000,
             ]);
+    }
+
+    /**
+     * Pintasan dari daftar pesanan: halaman penerimaan terbuka dengan pesanan
+     * terpilih dan sisa unitnya sudah menjadi baris.
+     */
+    public function test_penerimaan_terisi_dari_alamat_pesanan(): void
+    {
+        $po = $this->poDisetujui($this->produk(), 2);
+
+        $data = Livewire::withQueryParams(['purchase_order_id' => $po->id])
+            ->test(CreateGoodsReceipt::class)
+            ->get('data');
+
+        $this->assertSame($po->id, $data['purchase_order_id']);
+        $this->assertSame($po->vendor_id, $data['vendor_id']);
+        $this->assertCount(2, $data['items']);
+    }
+
+    /**
+     * Pintasan dari daftar penerimaan: faktur terbuka dengan vendor, penerimaan,
+     * dan nilainya sudah terisi.
+     */
+    public function test_faktur_terisi_dari_alamat_penerimaan(): void
+    {
+        $po = $this->poDisetujui($this->produk(), 2, 7_500_000);
+        $gr = $this->penerimaanDisetujui($po, ['SN-URL-1', 'SN-URL-2']);
+
+        $data = Livewire::withQueryParams(['goods_receipt_id' => $gr->id])
+            ->test(CreatePurchaseInvoice::class)
+            ->get('data');
+
+        $this->assertSame($gr->vendor_id, $data['vendor_id']);
+        $this->assertSame([$gr->id], $data['goods_receipt_ids']);
+        $this->assertEquals(15_000_000, (float) $data['subtotal']);
+        $this->assertEquals(15_000_000, (float) $data['total_amount']);
+    }
+
+    /**
+     * Syarat pembayaran dan PPN sudah ada di pesanan, jadi faktur tidak boleh
+     * meminta keduanya diketik lagi.
+     */
+    public function test_faktur_mewarisi_syarat_dan_ppn_dari_pesanan(): void
+    {
+        $syarat = PaymentTerm::where('code', 'net60')->value('id')
+            ?? PaymentTerm::where('code', '!=', 'net30')->value('id');
+
+        $po = $this->poDisetujui($this->produk(), 2, 10_000_000, 11, $syarat);
+        $gr = $this->penerimaanDisetujui($po, ['SN-WARIS-1', 'SN-WARIS-2']);
+
+        $data = Livewire::withQueryParams(['goods_receipt_id' => $gr->id])
+            ->test(CreatePurchaseInvoice::class)
+            ->get('data');
+
+        $this->assertSame($syarat, $data['payment_term_id']);
+        $this->assertSame($po->branch_id, $data['branch_id']);
+        $this->assertEquals(20_000_000, (float) $data['subtotal']);
+        $this->assertEquals(2_200_000, (float) $data['tax']);
+        $this->assertEquals(22_200_000, (float) $data['total_amount']);
+    }
+
+    /**
+     * Syarat pembayaran yang mengikat adalah yang tercatat di pesanan, bukan
+     * syarat vendor yang berlaku hari ini.
+     */
+    public function test_syarat_pesanan_menang_atas_syarat_vendor_terkini(): void
+    {
+        $syaratPesanan = PaymentTerm::where('code', 'net60')->value('id')
+            ?? PaymentTerm::where('code', '!=', 'net30')->value('id');
+
+        $po = $this->poDisetujui($this->produk(), 1, 5_000_000, 0, $syaratPesanan);
+        $gr = $this->penerimaanDisetujui($po, ['SN-SYARAT-1']);
+
+        // Vendor mengubah syaratnya setelah pesanan berjalan.
+        $lain = PaymentTerm::where('id', '!=', $syaratPesanan)->value('id');
+        $this->vendor()->update(['payment_term_id' => $lain]);
+
+        $data = Livewire::withQueryParams(['goods_receipt_id' => $gr->id])
+            ->test(CreatePurchaseInvoice::class)
+            ->get('data');
+
+        $this->assertSame($syaratPesanan, $data['payment_term_id']);
+    }
+
+    /**
+     * Pembayaran dibuka dari daftar faktur: vendor, cabang, alokasi, dan
+     * nilainya sudah terisi sebesar sisa tagihan.
+     */
+    public function test_pembayaran_terisi_dari_alamat_faktur(): void
+    {
+        $po = $this->poDisetujui($this->produk(), 1, 9_000_000);
+        $gr = $this->penerimaanDisetujui($po, ['SN-BAYAR-1']);
+
+        $faktur = app(PurchaseInvoiceService::class)->create([
+            'vendor_id' => $gr->vendor_id,
+            'branch_id' => $gr->branch_id,
+            'invoice_number' => 'INV-UJI-BAYAR',
+            'invoice_date' => now()->toDateString(),
+            'subtotal' => 9_000_000,
+            'tax' => 0,
+            'total_amount' => 9_000_000,
+        ], [$gr->id]);
+
+        $data = Livewire::withQueryParams(['purchase_invoice_id' => $faktur->id])
+            ->test(CreateVendorPayment::class)
+            ->get('data');
+
+        $this->assertSame($faktur->vendor_id, $data['vendor_id']);
+        $this->assertSame($faktur->branch_id, $data['branch_id']);
+        $this->assertEquals(9_000_000, (float) $data['amount']);
+
+        $alokasi = array_values($data['allocations']);
+        $this->assertCount(1, $alokasi);
+        $this->assertSame($faktur->id, $alokasi[0]['purchase_invoice_id']);
+        $this->assertEquals(9_000_000, (float) $alokasi[0]['amount']);
+    }
+
+    /**
+     * Nilai pembayaran mengikuti jumlah alokasinya, tanpa diketik ulang.
+     */
+    public function test_nilai_pembayaran_mengikuti_alokasi(): void
+    {
+        $faktur = collect([['INV-JML-1', 4_000_000], ['INV-JML-2', 6_000_000]])
+            ->map(function (array $isi): int {
+                [$nomor, $nilai] = $isi;
+
+                $po = $this->poDisetujui($this->produk(), 1, $nilai);
+                $gr = $this->penerimaanDisetujui($po, ['SN-'.$nomor]);
+
+                return app(PurchaseInvoiceService::class)->create([
+                    'vendor_id' => $gr->vendor_id,
+                    'branch_id' => $gr->branch_id,
+                    'invoice_number' => $nomor,
+                    'invoice_date' => now()->toDateString(),
+                    'subtotal' => $nilai,
+                    'tax' => 0,
+                    'total_amount' => $nilai,
+                ], [$gr->id])->id;
+            });
+
+        $data = Livewire::test(CreateVendorPayment::class)
+            ->fillForm([
+                'vendor_id' => $this->vendor()->id,
+                'branch_id' => $this->cabang()->id,
+                'payment_date' => now()->toDateString(),
+                'payment_method' => 'transfer',
+                'allocations' => [
+                    ['purchase_invoice_id' => $faktur[0], 'amount' => 4_000_000],
+                    ['purchase_invoice_id' => $faktur[1], 'amount' => 6_000_000],
+                ],
+            ])
+            ->get('data');
+
+        $this->assertEquals(10_000_000, (float) $data['amount']);
     }
 }

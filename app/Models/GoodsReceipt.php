@@ -109,6 +109,24 @@ class GoodsReceipt extends Model
     }
 
     /**
+     * PPN penerimaan ini, dihitung dari persentase pajak baris pesanannya.
+     *
+     * Penerimaan tanpa pesanan tidak punya persentase pajak, jadi nilainya nol
+     * dan PPN-nya diisi manual di faktur.
+     */
+    public function getTaxValueAttribute(): float
+    {
+        $this->loadMissing('items.purchaseOrderItem');
+
+        return (float) $this->items->sum(function (GoodsReceiptItem $item): float {
+            $harga = (float) ($item->unit_price ?? $item->purchaseOrderItem?->unit_price ?? 0);
+            $persen = (float) ($item->purchaseOrderItem?->tax_percent ?? 0);
+
+            return $harga * $persen / 100;
+        });
+    }
+
+    /**
      * Penerimaan yang belum tercakup faktur mana pun yang masih berlaku.
      *
      * Faktur yang dibatalkan tidak dihitung, jadi penerimaannya kembali bisa

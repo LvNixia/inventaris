@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\GoodsReceipts\Tables;
 
 use App\Enums\Role;
+use App\Filament\Resources\PurchaseInvoices\PurchaseInvoiceResource;
 use App\Models\GoodsReceipt;
 use App\Services\GoodsReceiptService;
 use Filament\Actions\Action;
@@ -113,6 +114,18 @@ class GoodsReceiptsTable
                         fn () => app(GoodsReceiptService::class)->cancel($record, $data['alasan']),
                         'Penerimaan dibatalkan',
                     )),
+
+                Action::make('buatFaktur')
+                    ->label('Buat Faktur')
+                    ->icon('heroicon-o-document-currency-dollar')
+                    ->color('primary')
+                    // Hanya untuk penerimaan yang sudah disetujui dan belum
+                    // ditagih; nilai fakturnya ikut terisi dari harga unitnya.
+                    ->visible(fn (GoodsReceipt $record): bool => $record->status === 'received'
+                        && GoodsReceipt::query()->belumDitagih()->whereKey($record->id)->exists())
+                    ->url(fn (GoodsReceipt $record): string => PurchaseInvoiceResource::getUrl('create', [
+                        'goods_receipt_id' => $record->id,
+                    ])),
 
                 EditAction::make(),
             ])

@@ -304,7 +304,7 @@ class GoodsReceiptForm
      *
      * @return array<string, array<string, mixed>>
      */
-    protected static function barisSisaPesanan(mixed $poId): array
+    public static function barisSisaPesanan(mixed $poId): array
     {
         if (blank($poId)) {
             return [];

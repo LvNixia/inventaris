@@ -72,7 +72,8 @@ class VendorPaymentForm
                             ->required()
                             ->live(onBlur: true)
                             ->mask(RawJs::make("\$money(\$input, ',', '.', 0)"))
-                            ->stripCharacters(['.', ',']),
+                            ->stripCharacters(['.', ','])
+                            ->helperText('Terisi dari jumlah alokasi di bawah; ubah bila transfernya berbeda.'),
 
                         Select::make('payment_method')
                             ->label('Metode')
@@ -114,11 +115,13 @@ class VendorPaymentForm
                                     ->distinct()
                                     ->searchable()
                                     ->live()
-                                    // Bawaannya melunasi sisa faktur.
-                                    ->afterStateUpdated(fn ($state, Set $set) => $set(
-                                        'amount',
-                                        PurchaseInvoice::find($state)?->outstanding,
-                                    )),
+                                    // Bawaannya melunasi sisa faktur, lalu nilai
+                                    // pembayarannya ikut menyesuaikan.
+                                    ->afterStateUpdated(function ($state, Get $get, Set $set): void {
+                                        $set('amount', PurchaseInvoice::find($state)?->outstanding);
+
+                                        static::jumlahkanAlokasi($get, $set);
+                                    }),
 
                                 TextInput::make('amount')
                                     ->hiddenLabel()
@@ -127,7 +130,8 @@ class VendorPaymentForm
                                     ->required()
                                     ->live(onBlur: true)
                                     ->mask(RawJs::make("\$money(\$input, ',', '.', 0)"))
-                                    ->stripCharacters(['.', ',']),
+                                    ->stripCharacters(['.', ','])
+                                    ->afterStateUpdated(fn (Get $get, Set $set) => static::jumlahkanAlokasi($get, $set)),
                             ]),
 
                         Placeholder::make('selisih')
@@ -157,6 +161,21 @@ class VendorPaymentForm
                             ->rows(2),
                     ]),
             ]);
+    }
+
+    /**
+     * Nilai pembayaran mengikuti jumlah alokasinya.
+     *
+     * Angka itu harus sama persis, dan VendorPaymentService menolak yang tidak
+     * sama. Mengetiknya ulang hanya membuka peluang salah, jadi dijumlahkan di
+     * sini — pengguna tetap boleh menimpanya bila transfernya memang berbeda.
+     */
+    protected static function jumlahkanAlokasi(Get $get, Set $set): void
+    {
+        $total = collect($get('../../allocations') ?? $get('allocations') ?? [])
+            ->sum(fn ($baris): float => (float) ($baris['amount'] ?? 0));
+
+        $set('../../amount', $total);
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PurchaseOrders\Tables;
 
 use App\Enums\Role;
+use App\Filament\Resources\GoodsReceipts\GoodsReceiptResource;
 use App\Models\PurchaseOrder;
 use App\Services\PurchaseOrderService;
 use Filament\Actions\Action;
@@ -144,6 +145,21 @@ class PurchaseOrdersTable
                         fn () => app(PurchaseOrderService::class)->returnToDraft($record, $data['alasan']),
                         'PO dikembalikan ke draf',
                     )),
+
+                Action::make('terimaBarang')
+                    ->label('Buat Penerimaan')
+                    ->icon('heroicon-o-truck')
+                    ->color('primary')
+                    // Sisa unitnya ditarik otomatis di halaman penerimaan, jadi
+                    // pengguna tidak perlu mengetik ulang barang dan harganya.
+                    ->visible(fn (PurchaseOrder $record): bool => in_array(
+                        $record->status,
+                        ['approved', 'partial_receipt'],
+                        true,
+                    ))
+                    ->url(fn (PurchaseOrder $record): string => GoodsReceiptResource::getUrl('create', [
+                        'purchase_order_id' => $record->id,
+                    ])),
 
                 Action::make('batalkan')
                     ->label('Batalkan')
