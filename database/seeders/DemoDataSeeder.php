@@ -126,6 +126,7 @@ class DemoDataSeeder extends Seeder
             $this->buatBarang();
             $this->buatPembelian();
             $this->buatTagihan();
+            $this->pengadaanBerjalan();
             $this->serahkanAset();
             $this->tarikSebagian();
             $this->buatServis();
@@ -156,18 +157,21 @@ class DemoDataSeeder extends Seeder
             Brand::firstOrCreate(['name' => $nama], ['is_active' => true]);
         }
 
+        // Syarat pembayaran melekat pada vendor: itulah yang tersalin ke pesanan
+        // saat vendornya dipilih, lalu ikut ke fakturnya.
         $vendors = [
-            ['Sinar Terang Komputer', 'toko', 'Bpk. Andi', '021-5551234'],
-            ['Mitra Data Solusi', 'keduanya', 'Ibu Sari', '021-5555678'],
-            ['Batam Jaya Elektronik', 'toko', 'Bpk. Rudi', '0778-451234'],
-            ['Servis Cepat Teknik', 'servis', 'Bpk. Hendra', '021-5559876'],
+            ['Sinar Terang Komputer', 'toko', 'Bpk. Andi', '021-5551234', 'net30'],
+            ['Mitra Data Solusi', 'keduanya', 'Ibu Sari', '021-5555678', 'net14'],
+            ['Batam Jaya Elektronik', 'toko', 'Bpk. Rudi', '0778-451234', 'net45'],
+            ['Servis Cepat Teknik', 'servis', 'Bpk. Hendra', '021-5559876', 'cod'],
         ];
 
-        foreach ($vendors as [$nama, $tipe, $kontak, $telepon]) {
+        foreach ($vendors as [$nama, $tipe, $kontak, $telepon, $syarat]) {
             Vendor::firstOrCreate(['name' => $nama], [
                 'type' => $tipe,
                 'contact' => $kontak,
                 'phone' => $telepon,
+                'payment_term_id' => PaymentTerm::where('code', $syarat)->value('id'),
                 'is_active' => true,
             ]);
         }
@@ -310,6 +314,11 @@ class DemoDataSeeder extends Seeder
             ['win11_pro', 5, 2900000, 28, 0, 'JKT'],
             // Pembelian ulang barang yang sama: menambah batch, bukan barang baru.
             ['mk270', 4, 385000, 2, 12, 'JKT'],
+            // Dua kiriman berdekatan dari vendor yang sama, supaya ada faktur
+            // yang mencakup lebih dari satu penerimaan sekaligus.
+            ['c920', 2, 1290000, 2, 24, 'JKT'],
+            ['samsung_ls24', 2, 1795000, 4, 24, 'BTM'],
+            ['dell_p2422h', 2, 2690000, 4, 36, 'BTM'],
         ];
 
         $urut = 0;
@@ -380,38 +389,95 @@ class DemoDataSeeder extends Seeder
         ?int $vendorId,
         Carbon $tanggal,
     ): Collection {
-        // Pengajuan dan persetujuan dipisah: pengaju tidak boleh menyetujui
-        // pengajuannya sendiri.
+        $po = $this->buatPesanan($produk, count($units), $harga, $garansiBulan, $cabang, $vendorId, $tanggal);
+
+        $po = $this->setujuiPesanan($po);
+
+        $gr = $this->buatPenerimaan($po, $units, $tanggal);
+
+        $gr = app(GoodsReceiptService::class)->receive($gr);
+
+        $this->receipts[] = $gr;
+
+        return Asset::withoutGlobalScopes()
+            ->whereIn('id', $gr->items()->pluck('asset_id')->filter())
+            ->orderBy('id')
+            ->get();
+    }
+
+    /**
+     * Pesanan berstatus draf, lengkap dengan satu baris barang.
+     *
+     * Syarat pembayarannya disalin dari vendor, persis seperti yang dilakukan
+     * formulir saat vendornya dipilih.
+     */
+    protected function buatPesanan(
+        Product $produk,
+        int $jumlah,
+        float $harga,
+        int $garansiBulan,
+        string $cabang,
+        ?int $vendorId,
+        Carbon $tanggal,
+    ): PurchaseOrder {
+        // Pesanan selalu disusun staf pengadaan; persetujuannya di tangan
+        // orang lain.
         Auth::login($this->pengadaan);
 
         $po = PurchaseOrder::create([
             'branch_id' => $this->branches[$cabang]->id,
             'vendor_id' => $vendorId,
-            'payment_term_id' => PaymentTerm::where('code', 'net30')->value('id'),
+            'payment_term_id' => Vendor::find($vendorId)?->payment_term_id
+                ?? PaymentTerm::where('code', 'net30')->value('id'),
             'po_date' => $tanggal->copy()->subDays(7),
             'expected_date' => $tanggal,
             'status' => 'draft',
             'created_by' => $this->pengadaan->id,
         ]);
 
-        $poItem = $po->items()->create([
+        $po->items()->create([
             'product_id' => $produk->id,
-            'quantity' => count($units),
+            'quantity' => $jumlah,
             'unit_price' => $harga,
+            // Lisensi perangkat lunak dibeli tanpa PPN dari vendor ini.
             'tax_percent' => $produk->category->code_prefix === 'LSS' ? 0 : 11,
             'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
         ]);
 
+        return $po->refresh();
+    }
+
+    /**
+     * Ajukan lalu setujui pesanan. Pengaju tidak boleh menyetujui pengajuannya
+     * sendiri, jadi penggunanya berganti di tengah.
+     */
+    protected function setujuiPesanan(PurchaseOrder $po): PurchaseOrder
+    {
         $poService = app(PurchaseOrderService::class);
-        $po = $poService->submit($po->refresh());
+
+        Auth::login($this->pengadaan);
+        $po = $poService->submit($po);
 
         Auth::login($this->admin);
-        $po = $poService->approve($po);
+
+        return $poService->approve($po);
+    }
+
+    /**
+     * Penerimaan berstatus draf atas sebuah pesanan, satu baris per unit.
+     *
+     * @param  array<int, array<string, mixed>>  $units
+     */
+    protected function buatPenerimaan(PurchaseOrder $po, array $units, Carbon $tanggal): GoodsReceipt
+    {
+        Auth::login($this->admin);
+
+        $poItem = $po->items->first();
 
         $gr = GoodsReceipt::create([
             'purchase_order_id' => $po->id,
             'branch_id' => $po->branch_id,
-            'vendor_id' => $vendorId,
+            'vendor_id' => $po->vendor_id,
             'receipt_date' => $tanggal,
             'delivery_document_number' => 'SJ/'.$tanggal->format('Y/m').'/'.str_pad((string) $po->id, 3, '0', STR_PAD_LEFT),
             'status' => 'draft',
@@ -421,22 +487,15 @@ class DemoDataSeeder extends Seeder
         foreach ($units as $unit) {
             $gr->items()->create([
                 'purchase_order_item_id' => $poItem->id,
-                'product_id' => $produk->id,
-                'serial_number' => $unit['serial_number'],
-                'imei_1' => $unit['imei_1'],
-                'unit_price' => $harga,
-                'warranty_months' => $garansiBulan > 0 ? $garansiBulan : null,
+                'product_id' => $poItem->product_id,
+                'serial_number' => $unit['serial_number'] ?? null,
+                'imei_1' => $unit['imei_1'] ?? null,
+                'unit_price' => $poItem->unit_price,
+                'warranty_months' => $poItem->warranty_months,
             ]);
         }
 
-        $gr = app(GoodsReceiptService::class)->receive($gr->refresh());
-
-        $this->receipts[] = $gr;
-
-        return Asset::withoutGlobalScopes()
-            ->whereIn('id', $gr->items()->pluck('asset_id')->filter())
-            ->orderBy('id')
-            ->get();
+        return $gr->refresh();
     }
 
     /**
@@ -450,29 +509,46 @@ class DemoDataSeeder extends Seeder
         $invoiceService = app(PurchaseInvoiceService::class);
         $paymentService = app(VendorPaymentService::class);
 
-        // Penerimaan terbaru per vendor, diurutkan dari yang paling belakang.
+        // Hanya penerimaan tujuh bulan terakhir yang ditagihkan. Pembelian
+        // yang lebih tua dianggap sudah selesai urusan administrasinya, jadi
+        // tidak ada faktur menganggur bertahun-tahun di daftar hutang.
         $perVendor = collect($this->receipts)
-            ->filter(fn (GoodsReceipt $gr): bool => $gr->vendor_id !== null)
+            ->filter(fn (GoodsReceipt $gr): bool => $gr->vendor_id !== null
+                && $gr->receipt_date->greaterThanOrEqualTo(now()->subMonths(7)))
             ->sortByDesc(fn (GoodsReceipt $gr) => $gr->receipt_date)
             ->groupBy('vendor_id');
 
         $urut = 0;
         $faktur = [];
 
-        // Tiap vendor ditagih dua kali, masing-masing mencakup dua penerimaan
-        // sekaligus — itulah kebiasaan vendor langganan.
+        // Tiap vendor ditagih dua kali. Satu faktur boleh mencakup dua
+        // pengiriman, tetapi hanya yang berdekatan waktunya: tidak ada vendor
+        // yang menagih kiriman bulan ini bersama kiriman setengah tahun lalu.
         foreach ($perVendor as $vendorId => $daftar) {
-            foreach ($daftar->chunk(2)->take(2) as $terpilih) {
+            foreach ($this->kelompokkanPenerimaan($daftar)->take(2) as $terpilih) {
                 $urut++;
-                $tanggalFaktur = $terpilih->first()->receipt_date->copy()->addDays(3);
+                $awal = $terpilih->first();
+                $tanggalFaktur = $awal->receipt_date->copy()->addDays(3);
+
+                // Nilai faktur dipecah persis seperti yang dihitung aplikasi:
+                // subtotal dari harga unit, PPN dari persen pajak baris
+                // pesanannya. Faktur tanpa PPN membuat laporan hutang menyebut
+                // angka yang lebih kecil daripada nilai pesanannya sendiri.
+                $subtotal = (float) $terpilih->sum(fn (GoodsReceipt $gr): float => $gr->total_value);
+                $ppn = round($terpilih->sum(fn (GoodsReceipt $gr): float => $gr->tax_value));
 
                 $faktur[] = $invoiceService->create([
                     'invoice_number' => 'INV/'.$tanggalFaktur->format('Y/m').'/'.str_pad((string) $urut, 3, '0', STR_PAD_LEFT),
                     'vendor_id' => $vendorId,
-                    'branch_id' => $terpilih->first()->branch_id,
-                    'payment_term_id' => PaymentTerm::where('code', 'net30')->value('id'),
+                    'branch_id' => $awal->branch_id,
+                    // Syarat pembayaran mengikuti pesanannya, bukan syarat
+                    // vendor yang berlaku hari ini.
+                    'payment_term_id' => $awal->purchaseOrder?->payment_term_id
+                        ?? Vendor::find($vendorId)?->payment_term_id,
                     'invoice_date' => $tanggalFaktur,
-                    'total_amount' => $this->nilaiPenerimaan($terpilih),
+                    'subtotal' => $subtotal,
+                    'tax' => $ppn,
+                    'total_amount' => $subtotal + $ppn,
                 ], $terpilih->pluck('id')->all());
             }
         }
@@ -481,21 +557,28 @@ class DemoDataSeeder extends Seeder
             return;
         }
 
-        // Faktur pertama dilunasi penuh.
-        $lunas = $faktur[0];
-        $paymentService->pay([
-            'vendor_id' => $lunas->vendor_id,
-            'branch_id' => $lunas->branch_id,
-            'payment_date' => $lunas->invoice_date->copy()->addDays(10),
-            'amount' => (float) $lunas->total_amount,
-            'payment_method' => 'transfer',
-            'reference_number' => 'TRF/BCA/882140',
-            'notes' => 'Pelunasan sesuai faktur.',
-        ], [['purchase_invoice_id' => $lunas->id, 'amount' => (float) $lunas->total_amount]]);
+        // Sebagian besar faktur dilunasi tepat waktu; yang menunggak hanya dua
+        // terakhir. Perusahaan yang tidak pernah membayar apa pun bukan
+        // keadaan yang masuk akal untuk dicontohkan.
+        $faktur = collect($faktur);
+        $menunggak = $faktur->slice(-2)->values();
 
-        // Faktur kedua dibayar sebagian, sisanya jadi hutang berjalan.
-        if (isset($faktur[1])) {
-            $sebagian = $faktur[1];
+        foreach ($faktur->slice(0, max(0, $faktur->count() - 2)) as $urutBayar => $lunas) {
+            $paymentService->pay([
+                'vendor_id' => $lunas->vendor_id,
+                'branch_id' => $lunas->branch_id,
+                'payment_date' => $lunas->invoice_date->copy()->addDays(10),
+                'amount' => (float) $lunas->total_amount,
+                'payment_method' => 'transfer',
+                'reference_number' => 'TRF/BCA/'.(882140 + $urutBayar),
+                'notes' => 'Pelunasan sesuai faktur.',
+            ], [['purchase_invoice_id' => $lunas->id, 'amount' => (float) $lunas->total_amount]]);
+        }
+
+        // Yang kedua dari belakang baru dibayar sebagian; sisanya jadi hutang
+        // berjalan.
+        if ($menunggak->count() === 2) {
+            $sebagian = $menunggak->first();
             $separuh = round((float) $sebagian->total_amount * 0.4);
 
             $paymentService->pay([
@@ -505,27 +588,112 @@ class DemoDataSeeder extends Seeder
                 'amount' => $separuh,
                 'payment_method' => 'transfer',
                 'reference_number' => 'TRF/BCA/882199',
-                'notes' => 'Pembayaran tahap pertama.',
+                'notes' => 'Pembayaran tahap pertama; sisanya menyusul.',
             ], [['purchase_invoice_id' => $sebagian->id, 'amount' => $separuh]]);
         }
 
-        // Satu faktur sengaja dibiarkan lewat jatuh tempo tanpa pembayaran,
-        // supaya penyaring "lewat jatuh tempo" ada isinya.
-        if (isset($faktur[2])) {
-            $faktur[2]->update(['due_date' => now()->subDays(12)]);
-        }
+        // Sisanya dibiarkan tanpa pembayaran. Yang tanggal fakturnya sudah
+        // lewat syarat pembayarannya akan muncul sendiri sebagai lewat jatuh
+        // tempo — tidak perlu tanggalnya dipaksa.
     }
 
     /**
-     * Nilai beberapa penerimaan, dijumlahkan dari harga tiap unitnya.
+     * Kelompokkan penerimaan menjadi calon faktur.
      *
-     * @param  Collection<int, GoodsReceipt>  $receipts
+     * Satu faktur mencakup paling banyak dua pengiriman, dan hanya bila
+     * jaraknya tidak lebih dari 45 hari. Aturan itu yang membuat isinya masuk
+     * akal dibaca: satu tagihan berisi kiriman yang memang berdekatan.
+     *
+     * @param  Collection<int, GoodsReceipt>  $daftar  Terurut dari yang terbaru.
+     * @return Collection<int, Collection<int, GoodsReceipt>>
      */
-    protected function nilaiPenerimaan(Collection $receipts): float
+    protected function kelompokkanPenerimaan(Collection $daftar): Collection
     {
-        return (float) $receipts->sum(
-            fn (GoodsReceipt $gr): float => (float) $gr->items()->sum('unit_price')
+        $kelompok = collect();
+
+        foreach ($daftar as $gr) {
+            $terakhir = $kelompok->last();
+
+            $muat = $terakhir
+                && $terakhir->count() < 2
+                // Selisihnya diambil mutlak: daftarnya terurut dari yang
+                // terbaru, jadi selisih bertandanya selalu negatif.
+                && abs($terakhir->last()->receipt_date->diffInDays($gr->receipt_date)) <= 45;
+
+            if ($muat) {
+                $terakhir->push($gr);
+
+                continue;
+            }
+
+            $kelompok->push(collect([$gr]));
+        }
+
+        return $kelompok;
+    }
+
+    /**
+     * Pengadaan yang belum tuntas, satu untuk tiap keadaan yang bisa ditemui.
+     *
+     * Tanpa ini seluruh pesanan pada data simulasi berstatus Selesai, sehingga
+     * tombol persetujuan, "Buat Penerimaan", dan penyaring status tidak punya
+     * satu pun baris untuk dicoba.
+     */
+    protected function pengadaanBerjalan(): void
+    {
+        $vendorJkt = Vendor::where('name', 'Sinar Terang Komputer')->value('id');
+        $vendorBtm = Vendor::where('name', 'Batam Jaya Elektronik')->value('id');
+        $poService = app(PurchaseOrderService::class);
+
+        // 1. Masih draf: baru disusun, belum diajukan.
+        $this->buatPesanan(
+            $this->products['mk270'], 6, 385_000, 12, 'JKT', $vendorJkt, now()->subDays(2),
         );
+
+        // 2. Menunggu persetujuan admin pusat.
+        $diajukan = $this->buatPesanan(
+            $this->products['galaxy_a54'], 2, 5_950_000, 12, 'JKT', $vendorJkt, now()->addDays(5),
+        );
+        Auth::login($this->pengadaan);
+        $poService->submit($diajukan);
+
+        // 3. Sudah disetujui, barangnya belum datang. Inilah baris yang dipakai
+        //    mencoba tombol "Buat Penerimaan".
+        $this->setujuiPesanan($this->buatPesanan(
+            $this->products['thinkpad_e14'], 3, 13_900_000, 24, 'BTM', $vendorBtm, now()->addDays(9),
+        ));
+
+        // 4. Diterima sebagian: dipesan 4 monitor, baru 2 yang dikirim.
+        $sebagian = $this->setujuiPesanan($this->buatPesanan(
+            $this->products['dell_p2422h'], 4, 2_690_000, 36, 'JKT', $vendorJkt, now()->subDays(10),
+        ));
+
+        $gr = $this->buatPenerimaan($sebagian, [
+            ['serial_number' => 'MON-901-0001'],
+            ['serial_number' => 'MON-901-0002'],
+        ], now()->subDays(8));
+
+        $this->receipts[] = app(GoodsReceiptService::class)->receive($gr);
+
+        // 5. Dibatalkan sebelum barangnya dikirim.
+        $batal = $this->setujuiPesanan($this->buatPesanan(
+            $this->products['epson_l3210'], 2, 2_495_000, 24, 'JKT', $vendorJkt, now()->subDays(20),
+        ));
+        $poService->cancel($batal, 'Vendor menyatakan barangnya kosong sampai kuartal depan.');
+
+        // 6. Penerimaan yang masih draf karena nomor serinya belum lengkap.
+        //    Menyetujuinya akan ditolak sampai seluruh baris bernomor seri —
+        //    itulah gerbang yang ingin diperlihatkan.
+        $menunggu = $this->setujuiPesanan($this->buatPesanan(
+            $this->products['prodesk_400'], 2, 12_650_000, 36, 'JKT', $vendorJkt, now()->subDays(4),
+        ));
+
+        $this->buatPenerimaan($menunggu, [
+            ['serial_number' => 'PC-902-0001'],
+            ['serial_number' => null],
+        ], now()->subDays(3));
+
+        Auth::login($this->admin);
     }
 
     /**
@@ -917,7 +1085,11 @@ class DemoDataSeeder extends Seeder
             'Pembelian (batch)' => PurchaseBatch::withoutGlobalScopes()->count(),
             'Unit aset' => Asset::withoutGlobalScopes()->count(),
             'Pesanan pembelian' => PurchaseOrder::withoutGlobalScopes()->count(),
+            '  di antaranya berjalan' => PurchaseOrder::withoutGlobalScopes()
+                ->whereNotIn('status', ['completed', 'cancelled'])->count(),
             'Penerimaan barang' => GoodsReceipt::withoutGlobalScopes()->count(),
+            '  di antaranya draf' => GoodsReceipt::withoutGlobalScopes()
+                ->where('status', 'draft')->count(),
             'Faktur vendor' => PurchaseInvoice::withoutGlobalScopes()->count(),
             'Surat serah terima' => HandoverDocument::withoutGlobalScopes()->count(),
             'Transaksi' => AssetTransaction::count(),
@@ -943,6 +1115,8 @@ class DemoDataSeeder extends Seeder
         $this->command->line('  - 4 lampiran berkas, salah satunya tertaut ke catatan servis');
         $this->command->line('  - 1 barang dibeli dua kali dengan harga berbeda');
         $this->command->line('  - faktur vendor: lunas, dibayar sebagian, dan lewat jatuh tempo');
+        $this->command->line('  - pesanan berjalan: draf, menunggu persetujuan, disetujui, diterima sebagian, dibatalkan');
+        $this->command->line('  - 1 penerimaan draf yang tertahan karena nomor serinya belum lengkap');
 
         $this->command->newLine();
         $this->command->line('Akun untuk masuk (kata sandi: '.self::KATA_SANDI_DEMO.'):');
