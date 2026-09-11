@@ -132,7 +132,7 @@ class PurchaseInvoiceForm
                             ->searchable()
                             ->live()
                             ->dehydrated()
-                            ->helperText('Hanya penerimaan yang sudah disetujui, berasal dari vendor yang sama, dan belum ditagih faktur lain.')
+                            ->helperText('Hanya penerimaan yang sudah disetujui, berasal dari vendor yang sama, belum ditagih faktur lain, dan belum lunas di muka.')
                             // Subtotal ditarik dari harga unit tiap penerimaan.
                             // PPN tetap diisi manual karena angkanya di faktur
                             // vendor sering dibulatkan berbeda.
@@ -217,7 +217,7 @@ class PurchaseInvoiceForm
         return GoodsReceipt::query()
             ->where('vendor_id', $vendorId)
             ->where('status', 'received')
-            ->belumDitagih($invoiceId)
+            ->bisaDitagih($invoiceId)
             ->with('items.purchaseOrderItem')
             ->orderByDesc('receipt_date')
             ->get();

@@ -48,6 +48,7 @@ class PurchaseOrdersTable
                     ->sortable(),
                 TextColumn::make('vendor.name')
                     ->label('Vendor')
+                    ->placeholder('Belum ditentukan')
                     ->searchable()
                     ->sortable(),
                 TextColumn::make('items_count')
@@ -120,11 +121,14 @@ class PurchaseOrdersTable
                     ->label('Setujui')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn (PurchaseOrder $record): bool => $record->status === 'pending_approval'
-                        && auth()->user()->role === Role::AdminPusat)
+                    // Pesanan kecil boleh disetujui pengajunya sendiri; di atas
+                    // batas, tombolnya hanya muncul untuk orang yang memang
+                    // berhak, supaya tidak ada yang menekan tombol lalu ditolak.
+                    ->visible(fn (PurchaseOrder $record): bool => $record->bolehDisetujuiOleh(auth()->user()))
                     ->requiresConfirmation()
                     ->modalHeading('Setujui PO')
-                    ->modalDescription('Nomor PO akan terbit dan pesanan siap dikirim ke vendor.')
+                    ->modalDescription(fn (PurchaseOrder $record): string => 'Nomor PO akan terbit dan pesanan siap dikirim ke vendor. Nilai pesanan Rp '
+                        .number_format((float) $record->total, 0, ',', '.').'.')
                     ->action(fn (PurchaseOrder $record) => static::jalankan(
                         fn () => app(PurchaseOrderService::class)->approve($record),
                         'PO disetujui',

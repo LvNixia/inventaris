@@ -77,6 +77,29 @@ class PurchaseInvoiceService
                 throw new Exception("Penerimaan {$gr->gr_number} berasal dari vendor lain.");
             }
 
+            // Penjagaan ini harus ada di sini, bukan hanya di daftar pilihan
+            // formulir: menagih penerimaan yang sama dua kali berarti membayar
+            // barang yang sama dua kali, dan tidak ada satu pun langkah
+            // berikutnya yang akan menangkapnya.
+            $fakturLain = $gr->purchaseInvoices()
+                ->withoutGlobalScopes()
+                ->where('purchase_invoices.status', '!=', 'cancelled')
+                ->where('purchase_invoices.id', '!=', $invoice->id)
+                ->first();
+
+            if ($fakturLain) {
+                throw new Exception(
+                    "Penerimaan {$gr->gr_number} sudah ditagih faktur {$fakturLain->invoice_number}."
+                );
+            }
+
+            if ($gr->lunasDiMuka()) {
+                throw new Exception(
+                    "Penerimaan {$gr->gr_number} sudah lunas di muka dengan nota {$gr->purchase_reference}, "
+                    .'jadi tidak boleh ditagihkan lagi. Kosongkan nomor notanya bila pembelian itu ternyata bertempo.'
+                );
+            }
+
             $invoice->receipts()->firstOrCreate(
                 ['goods_receipt_id' => $gr->id],
                 ['amount' => $this->nilaiPenerimaan($gr)],

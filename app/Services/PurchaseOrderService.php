@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\Role;
 use App\Models\GoodsReceipt;
 use App\Models\PurchaseOrder;
+use App\Models\User;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -22,13 +23,6 @@ class PurchaseOrderService
 {
     public function __construct(protected DocumentNumberGenerator $numberGenerator) {}
 
-    /**
-     * Hitung ulang nilai PO dari baris-barisnya.
-     *
-     * Dipanggil setiap kali baris berubah. Nilainya disimpan, bukan dihitung
-     * saat tampil, supaya PO yang sudah disetujui tidak ikut bergeser ketika
-     * harga barang diperbarui.
-     */
     public function recalculate(PurchaseOrder $po): PurchaseOrder
     {
         $po->loadMissing('items');
@@ -112,18 +106,9 @@ class PurchaseOrderService
 
             $pengguna = auth()->user();
 
-            // Untuk Fase 1 persetujuan dipusatkan. Batas nilai per cabang bisa
-            // ditambahkan belakangan tanpa mengubah bentuk tabel.
-            if ($pengguna?->role !== Role::AdminPusat) {
-                throw new Exception('Hanya Admin Pusat yang bisa menyetujui PO.');
-            }
-
-            // Pemisahan tugas: yang mengajukan tidak menyetujui pengajuannya sendiri.
-            if ($po->submitted_by && (int) $po->submitted_by === (int) $pengguna->id) {
-                throw new Exception('PO yang Anda ajukan sendiri harus disetujui orang lain.');
-            }
-
             $this->recalculate($po);
+
+            $this->pastikanBolehMenyetujui($po->refresh(), $pengguna);
 
             $po->update([
                 'status' => 'approved',
@@ -218,4 +203,55 @@ class PurchaseOrderService
             return $po->refresh();
         });
     }
+
+    /**
+     * Aturan siapa yang boleh menyetujui sebuah pesanan.
+     *
+     * Pesanan bernilai kecil boleh disetujui pengajunya sendiri. Menahan
+     * belanja seharga beberapa ratus ribu sampai atasan sempat membuka
+     * aplikasi tidak menghasilkan kontrol apa pun — yang terjadi justru akun
+     * penyetuju dipinjam, dan jejaknya hilang. Di atas batas itu pemeriksaan
+     * orang kedua baru sepadan.
+     *
+     * Batasnya ada di config/pengadaan.php.
+     *
+     * @throws Exception
+     */
+    protected function pastikanBolehMenyetujui(PurchaseOrder $po, ?User $pengguna): void
+    {
+        $batas = (float) config('pengadaan.batas_persetujuan_mandiri', 0);
+
+        // Peninjau tidak pernah menyetujui apa pun, seberapa kecil pun
+        // nilainya. Batas nilai melonggarkan siapa di antara pengelola yang
+        // boleh menyetujui, bukan membuka pintu bagi yang hanya boleh melihat.
+        if (! in_array($pengguna?->role, [Role::AdminPusat, Role::AdminCabang], true)) {
+            throw new Exception('Peran Anda tidak berwenang menyetujui pesanan pembelian.');
+        }
+
+        if ((float) $po->total <= $batas) {
+            return;
+        }
+
+        if ($pengguna?->role !== Role::AdminPusat) {
+            throw new Exception(sprintf(
+                'Pesanan di atas Rp %s hanya bisa disetujui Admin Pusat.',
+                number_format($batas, 0, ',', '.'),
+            ));
+        }
+
+        if ($po->submitted_by && (int) $po->submitted_by === (int) $pengguna->id) {
+            throw new Exception(sprintf(
+                'Pesanan di atas Rp %s harus disetujui orang lain, bukan pengajunya sendiri.',
+                number_format($batas, 0, ',', '.'),
+            ));
+        }
+    }
+
+    /**
+     * Hitung ulang nilai PO dari baris-barisnya.
+     *
+     * Dipanggil setiap kali baris berubah. Nilainya disimpan, bukan dihitung
+     * saat tampil, supaya PO yang sudah disetujui tidak ikut bergeser ketika
+     * harga barang diperbarui.
+     */
 }

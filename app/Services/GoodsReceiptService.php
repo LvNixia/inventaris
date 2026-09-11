@@ -283,8 +283,10 @@ class GoodsReceiptService
                 'goods_receipt_id' => $gr->id,
                 'branch_id' => $gr->branch_id,
                 'vendor_id' => $gr->vendor_id,
-                // Nomor faktur menyusul saat tagihan vendor dicatat pada Tahap C.
-                'invoice_number' => null,
+                // Nomor nota atau pesanan marketplace langsung dipakai bila
+                // ada; kalau pembeliannya bertempo, nomornya menyusul saat
+                // faktur vendor dicatat.
+                'invoice_number' => blank($gr->purchase_reference) ? null : $gr->purchase_reference,
                 'purchase_date' => $gr->receipt_date,
                 'unit_price' => $harga,
                 'warranty_months' => $garansi,

@@ -347,4 +347,120 @@ class ProcurementGuardTest extends TestCase
         // sekitar banyaknya pemeriksaan, bukan banyaknya baris.
         $this->assertLessThan(15, $jumlahKueri, "Pemeriksaan Data menjalankan {$jumlahKueri} kueri; pola N+1 kembali.");
     }
+
+    /**
+     * Menagih satu penerimaan dua kali berarti membayar barang yang sama dua
+     * kali. Daftar pilihan formulir saja tidak cukup: penjagaannya harus ada
+     * di service, karena tidak ada langkah berikutnya yang akan menangkapnya.
+     */
+    public function test_satu_penerimaan_tidak_bisa_ditagih_dua_faktur(): void
+    {
+        $gr = $this->penerimaan();
+        $svc = app(PurchaseInvoiceService::class);
+
+        $isi = fn (string $nomor): array => [
+            'vendor_id' => $gr->vendor_id,
+            'branch_id' => $gr->branch_id,
+            'invoice_number' => $nomor,
+            'invoice_date' => now()->toDateString(),
+            'total_amount' => 1_000_000,
+        ];
+
+        $pertama = $svc->create($isi('INV-GANDA-1'), [$gr->id]);
+
+        $this->expectExceptionMessage('sudah ditagih faktur '.$pertama->invoice_number);
+
+        $svc->create($isi('INV-GANDA-2'), [$gr->id]);
+    }
+
+    /**
+     * Faktur yang dibatalkan melepaskan penerimaannya, jadi penerimaan itu
+     * boleh ditagih lagi lewat faktur baru.
+     */
+    public function test_penerimaan_bisa_ditagih_ulang_setelah_fakturnya_dibatalkan(): void
+    {
+        $gr = $this->penerimaan();
+        $svc = app(PurchaseInvoiceService::class);
+
+        $isi = fn (string $nomor): array => [
+            'vendor_id' => $gr->vendor_id,
+            'branch_id' => $gr->branch_id,
+            'invoice_number' => $nomor,
+            'invoice_date' => now()->toDateString(),
+            'total_amount' => 1_000_000,
+        ];
+
+        $svc->cancel($svc->create($isi('INV-BATAL-1'), [$gr->id]), 'Salah nomor faktur.');
+
+        $kedua = $svc->create($isi('INV-BATAL-2'), [$gr->id]);
+
+        $this->assertSame(1, $kedua->receipts()->count());
+    }
+
+    /**
+     * Belanja yang sudah lunas saat dipesan tidak punya tagihan untuk dicatat.
+     */
+    public function test_penerimaan_lunas_di_muka_tidak_bisa_ditagihkan(): void
+    {
+        $gr = $this->penerimaan();
+        $gr->update(['purchase_reference' => 'INV/20260910/MPL/7788']);
+
+        $this->assertFalse(
+            GoodsReceipt::query()->bisaDitagih()->whereKey($gr->id)->exists(),
+            'Penerimaan lunas di muka tidak boleh ditawarkan pada formulir faktur.'
+        );
+
+        $this->expectExceptionMessage('sudah lunas di muka');
+
+        app(PurchaseInvoiceService::class)->create([
+            'vendor_id' => $gr->vendor_id,
+            'branch_id' => $gr->branch_id,
+            'invoice_number' => 'INV-LUNAS-1',
+            'invoice_date' => now()->toDateString(),
+            'total_amount' => 1_000_000,
+        ], [$gr->id]);
+    }
+
+    /**
+     * Batas nilai melonggarkan siapa di antara pengelola yang boleh
+     * menyetujui — bukan membuka pintu bagi peran yang hanya boleh melihat.
+     */
+    public function test_peninjau_tidak_bisa_menyetujui_pesanan_sekecil_apa_pun(): void
+    {
+        config(['pengadaan.batas_persetujuan_mandiri' => 5_000_000]);
+
+        $po = PurchaseOrder::create([
+            'branch_id' => $this->cabang()->id,
+            'vendor_id' => $this->vendor()->id,
+            'po_date' => now(),
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+        $po->items()->create([
+            'product_id' => $this->barang('ACC', 'Mouse '.uniqid())->id,
+            'quantity' => 1,
+            'unit_price' => 200_000,
+            'tax_percent' => 0,
+        ]);
+
+        $svc = app(PurchaseOrderService::class);
+        $po = $svc->submit($po->refresh());
+
+        $peninjau = User::create([
+            'name' => 'Peninjau Uji',
+            'email' => 'peninjau@contoh.test',
+            'password' => 'rahasia-uji',
+            'role' => 'viewer',
+            'is_active' => true,
+            'branch_id' => $this->cabang()->id,
+        ]);
+
+        Auth::login($peninjau);
+
+        $this->assertFalse($po->bolehDisetujuiOleh($peninjau));
+
+        $this->expectExceptionMessage('tidak berwenang menyetujui');
+
+        $svc->approve($po);
+    }
 }

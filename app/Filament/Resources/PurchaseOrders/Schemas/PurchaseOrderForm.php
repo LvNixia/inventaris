@@ -39,11 +39,11 @@ class PurchaseOrderForm
                     ->schema([
                         Select::make('vendor_id')
                             ->label('Vendor')
-                            ->placeholder('Pilih Vendor')
+                            ->placeholder('Belum ditentukan')
+                            ->helperText('Boleh dikosongkan bila tokonya baru dipilih saat belanja.')
                             ->relationship('vendor', 'name', fn ($query) => $query->where('is_active', true))
                             ->searchable()
                             ->preload()
-                            ->required()
                             ->live()
                             ->disabled(fn (?PurchaseOrder $record) => $record && ! $record->isEditable())
                             ->dehydrated()
@@ -93,7 +93,7 @@ class PurchaseOrderForm
                     ]),
 
                 Section::make('Barang Dipesan')
-                    ->description('Satu baris untuk satu jenis barang. Nilai total dihitung ulang saat disimpan.')
+                    ->description('Satu baris untuk satu jenis barang. Harganya perkiraan — yang berlaku adalah harga saat barangnya diterima, dan selisihnya akan diberitahukan.')
                     ->schema([
                         Repeater::make('items')
                             ->hiddenLabel()
@@ -111,7 +111,7 @@ class PurchaseOrderForm
                                     ->width('12%')
                                     ->verticalAlignment(VerticalAlignment::Center)
                                     ->markAsRequired(),
-                                TableColumn::make('Harga Satuan')
+                                TableColumn::make('Perkiraan Harga')
                                     ->width('20%')
                                     ->verticalAlignment(VerticalAlignment::Center)
                                     ->markAsRequired(),

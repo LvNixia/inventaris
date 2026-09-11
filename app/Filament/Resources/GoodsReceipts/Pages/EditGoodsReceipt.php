@@ -22,15 +22,21 @@ class EditGoodsReceipt extends EditRecord
                 ->color('success')
                 ->visible(fn () => $this->record->status === 'draft')
                 ->requiresConfirmation()
-                ->modalDescription('Unit aset akan dibuat sebanyak baris pada penerimaan ini.')
+                ->modalDescription(fn (): string => trim(
+                    'Unit aset akan dibuat sebanyak baris pada penerimaan ini. '
+                    .($this->record->peringatanSelisihHarga() ?? '')
+                ))
                 ->action(function () {
                     try {
+                        $selisih = $this->record->peringatanSelisihHarga();
+
                         $gr = app(GoodsReceiptService::class)->receive($this->record);
 
                         Notification::make()
                             ->success()
                             ->title('Penerimaan disetujui')
-                            ->body($gr->items()->count().' unit dibuat dengan nomor '.$gr->gr_number.'.')
+                            ->body(trim($gr->items()->count().' unit dibuat dengan nomor '.$gr->gr_number.'. '.($selisih ?? '')))
+                            ->when($selisih !== null, fn (Notification $notifikasi) => $notifikasi->persistent())
                             ->send();
 
                         $this->redirect(GoodsReceiptResource::getUrl('index'));

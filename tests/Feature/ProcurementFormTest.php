@@ -6,6 +6,7 @@ use App\Filament\Resources\GoodsReceipts\Pages\CreateGoodsReceipt;
 use App\Filament\Resources\GoodsReceipts\Pages\EditGoodsReceipt;
 use App\Filament\Resources\PurchaseInvoices\Pages\CreatePurchaseInvoice;
 use App\Filament\Resources\VendorPayments\Pages\CreateVendorPayment;
+use App\Models\Asset;
 use App\Models\GoodsReceipt;
 use App\Models\PaymentTerm;
 use App\Models\Product;
@@ -435,5 +436,125 @@ class ProcurementFormTest extends TestCase
             ->get('data');
 
         $this->assertEquals(10_000_000, (float) $data['amount']);
+    }
+
+    /**
+     * Belanja marketplace: pesanan disetujui tanpa vendor, tokonya baru
+     * ditentukan saat barangnya diterima, dan nomor pesanannya menempel pada
+     * unit asetnya sebagai bukti beli — tanpa faktur sama sekali.
+     */
+    public function test_pengadaan_tanpa_vendor_dan_tanpa_faktur(): void
+    {
+        $produk = $this->produk();
+
+        $po = PurchaseOrder::create([
+            'branch_id' => $this->cabang()->id,
+            'vendor_id' => null,
+            'po_date' => now(),
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+        $po->items()->create([
+            'product_id' => $produk->id,
+            'quantity' => 1,
+            'unit_price' => 8_000_000,
+            'warranty_months' => 12,
+        ]);
+
+        $svc = app(PurchaseOrderService::class);
+        $po = $svc->submit($po->refresh());
+        Auth::login($this->adminKedua());
+        $po = $svc->approve($po);
+        Auth::login($this->admin);
+
+        $this->assertNull($po->vendor_id);
+
+        $gr = GoodsReceipt::create([
+            'purchase_order_id' => $po->id,
+            'branch_id' => $po->branch_id,
+            'vendor_id' => $this->vendor()->id,
+            'receipt_date' => now(),
+            'purchase_reference' => 'INV/20260910/MPL/8891234',
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+        $gr->items()->create([
+            'purchase_order_item_id' => $po->items->first()->id,
+            'product_id' => $produk->id,
+            'serial_number' => 'SN-MPL-1',
+            'unit_price' => 8_000_000,
+            'warranty_months' => 12,
+        ]);
+
+        $gr = app(GoodsReceiptService::class)->receive($gr);
+
+        $unit = Asset::withoutGlobalScopes()->findOrFail($gr->items->first()->asset_id);
+
+        $this->assertSame('INV/20260910/MPL/8891234', $unit->invoice_number);
+        $this->assertSame($this->vendor()->id, $unit->purchaseBatch->vendor_id);
+    }
+
+    /**
+     * Harga marketplace bergerak, jadi selisihnya diberitahukan — bukan
+     * ditolak.
+     */
+    public function test_selisih_harga_diperingatkan_bukan_ditolak(): void
+    {
+        $po = $this->poDisetujui($this->produk(), 1, 10_000_000);
+        $poItem = $po->items->first();
+
+        $gr = GoodsReceipt::create([
+            'purchase_order_id' => $po->id,
+            'branch_id' => $po->branch_id,
+            'vendor_id' => $po->vendor_id,
+            'receipt_date' => now(),
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+        $gr->items()->create([
+            'purchase_order_item_id' => $poItem->id,
+            'product_id' => $poItem->product_id,
+            'serial_number' => 'SN-NAIK-1',
+            'unit_price' => 12_000_000,
+            'warranty_months' => 12,
+        ]);
+
+        $peringatan = $gr->refresh()->peringatanSelisihHarga();
+
+        $this->assertNotNull($peringatan);
+        $this->assertStringContainsString('naik', $peringatan);
+        $this->assertStringContainsString('+20,0%', $peringatan);
+
+        // Tetap boleh disetujui: selisih harga bukan alasan menolak barang.
+        $gr = app(GoodsReceiptService::class)->receive($gr);
+
+        $this->assertSame('received', $gr->status);
+    }
+
+    /**
+     * Pergerakan harga kecil tidak perlu diperingatkan.
+     */
+    public function test_selisih_harga_kecil_tidak_diperingatkan(): void
+    {
+        $po = $this->poDisetujui($this->produk(), 1, 10_000_000);
+        $poItem = $po->items->first();
+
+        $gr = GoodsReceipt::create([
+            'purchase_order_id' => $po->id,
+            'branch_id' => $po->branch_id,
+            'vendor_id' => $po->vendor_id,
+            'receipt_date' => now(),
+            'status' => 'draft',
+            'created_by' => $this->admin->id,
+        ]);
+        $gr->items()->create([
+            'purchase_order_item_id' => $poItem->id,
+            'product_id' => $poItem->product_id,
+            'serial_number' => 'SN-TIPIS-1',
+            'unit_price' => 10_400_000,
+            'warranty_months' => 12,
+        ]);
+
+        $this->assertNull($gr->refresh()->peringatanSelisihHarga());
     }
 }

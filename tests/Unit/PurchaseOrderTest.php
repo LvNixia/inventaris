@@ -152,25 +152,73 @@ class PurchaseOrderTest extends TestCase
         $this->assertStringEndsWith('/02', $kedua->po_number);
     }
 
-    public function test_pengaju_tidak_bisa_menyetujui_ponya_sendiri(): void
+    /**
+     * Pesanan besar: pemeriksaan orang kedua tetap berlaku.
+     */
+    public function test_pengaju_tidak_bisa_menyetujui_po_besarnya_sendiri(): void
     {
-        $po = app(PurchaseOrderService::class)->submit($this->po());
+        $po = app(PurchaseOrderService::class)->submit($this->poBesar());
 
         $this->expectExceptionMessage('harus disetujui orang lain');
 
         app(PurchaseOrderService::class)->approve($po);
     }
 
-    public function test_admin_cabang_tidak_bisa_menyetujui(): void
+    public function test_admin_cabang_tidak_bisa_menyetujui_po_besar(): void
     {
-        $po = app(PurchaseOrderService::class)->submit($this->po());
+        $po = app(PurchaseOrderService::class)->submit($this->poBesar());
 
         $this->admin->update(['role' => 'admin_cabang']);
         Auth::login($this->admin->refresh());
 
-        $this->expectExceptionMessage('Hanya Admin Pusat');
+        $this->expectExceptionMessage('hanya bisa disetujui Admin Pusat');
 
         app(PurchaseOrderService::class)->approve($po);
+    }
+
+    /**
+     * Belanja kecil tidak perlu menunggu orang lain.
+     *
+     * Menahannya tidak menghasilkan kontrol apa pun — hanya mendorong akun
+     * penyetuju dipinjam, dan jejaknya justru hilang.
+     */
+    public function test_po_kecil_boleh_disetujui_pengajunya_sendiri(): void
+    {
+        config(['pengadaan.batas_persetujuan_mandiri' => 5_000_000]);
+
+        $po = app(PurchaseOrderService::class)->submit(
+            $this->po([['qty' => 2, 'harga' => 350_000, 'ppn' => 0]])
+        );
+
+        $po = app(PurchaseOrderService::class)->approve($po);
+
+        $this->assertSame('approved', $po->status);
+        $this->assertSame($this->admin->id, $po->approved_by);
+        $this->assertNotNull($po->po_number);
+    }
+
+    /**
+     * Batas nol berarti seluruh pesanan wajib disetujui orang lain.
+     */
+    public function test_batas_nol_mewajibkan_persetujuan_orang_lain(): void
+    {
+        config(['pengadaan.batas_persetujuan_mandiri' => 0]);
+
+        $po = app(PurchaseOrderService::class)->submit(
+            $this->po([['qty' => 1, 'harga' => 150_000, 'ppn' => 0]])
+        );
+
+        $this->expectExceptionMessage('harus disetujui orang lain');
+
+        app(PurchaseOrderService::class)->approve($po);
+    }
+
+    /**
+     * Pesanan yang nilainya melewati batas persetujuan mandiri.
+     */
+    protected function poBesar(): PurchaseOrder
+    {
+        return $this->po([['qty' => 2, 'harga' => 18_500_000]]);
     }
 
     public function test_po_draf_tidak_bisa_langsung_disetujui(): void

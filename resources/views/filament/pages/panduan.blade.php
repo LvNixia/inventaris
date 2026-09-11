@@ -259,15 +259,35 @@
                 <li>Cukup sekali. Pembelian berikutnya tinggal memilih barang yang sama.</li>
             </ul>
 
+            <h3>Dua jalur belanja</h3>
+
+            <p>Pesanan pembelian dipakai untuk <strong>semua</strong> pengadaan, termasuk belanja marketplace. Gunanya bukan mencatat hutang, melainkan mencatat apa yang diminta dan siapa yang menyetujuinya sebelum uang keluar.</p>
+
+            <p>Yang membedakan hanya ekornya — apakah pembelian itu menimbulkan hutang atau tidak:</p>
+
+            <ul>
+                <li><strong>Lunas di muka</strong> (marketplace, beli langsung di toko): Pesanan → belanja → Penerimaan Barang. Selesai. Nomor pesanan marketplace atau nomor nota diisi di penerimaan, dan faktur tidak dibuat sama sekali — tidak ada hutang untuk dilacak.</li>
+                <li><strong>Bertempo</strong> (distributor, vendor langganan): Pesanan → Penerimaan Barang → Faktur Vendor → Pembayaran Vendor.</li>
+            </ul>
+
+            <p>Membuat faktur yang langsung lunas untuk belanja marketplace hanya menambah dua dokumen tanpa informasi baru. Jangan lakukan itu.</p>
+
             <h3>Memesan ke vendor</h3>
 
             <ul>
                 <li>Buka <strong>Pengadaan → Pesanan Pembelian</strong>, lalu klik <strong>Buat</strong>.</li>
-                <li>Pilih vendor. Syarat pembayarannya terisi otomatis dari data vendor, dan masih boleh diubah untuk pesanan ini saja.</li>
-                <li>Tambahkan barang beserta jumlah, harga satuan, PPN, dan lama garansi. PPN diisi per baris karena satu pesanan sering memuat barang kena pajak dan tidak.</li>
                 <li>
-                    Simpan sebagai draf, lalu klik <strong>Ajukan</strong>.
-                    <p>Setelah diajukan, isinya terkunci. Admin Pusat yang menyetujui, dan <strong>tidak boleh orang yang sama dengan pengajunya</strong>.</p>
+                    Vendor boleh dikosongkan. Sering kali yang disetujui adalah barang dan plafon harganya, sedangkan tokonya baru dipilih saat belanja — toko sebenarnya dicatat di penerimaannya.
+                    <p>Kalau vendornya sudah pasti, pilih sekarang: syarat pembayarannya ikut terisi dari data vendor, dan masih boleh diubah untuk pesanan ini saja.</p>
+                </li>
+                <li>
+                    Tambahkan barang beserta jumlah, perkiraan harga, PPN, dan lama garansi. PPN diisi per baris karena satu pesanan sering memuat barang kena pajak dan tidak.
+                    <p>Harganya <strong>perkiraan</strong>. Harga marketplace bergerak, jadi yang berlaku adalah harga saat barangnya diterima. Kalau selisihnya lebih dari 10%, peringatan muncul sebelum penerimaan disetujui — memberi tahu, bukan menolak.</p>
+                </li>
+                <li>
+                    Simpan sebagai draf, lalu klik <strong>Ajukan</strong>. Setelah diajukan, isinya terkunci.
+                    <p>Siapa yang menyetujui tergantung nilainya. <strong>Sampai Rp 5.000.000</strong>, pengaju boleh menyetujui pesanannya sendiri — tetap tercatat siapa dan kapan. <strong>Di atas itu</strong>, harus Admin Pusat, dan tidak boleh orang yang sama dengan pengajunya.</p>
+                    <p>Batas itu ada supaya belanja kecil tidak tertahan menunggu atasan membuka aplikasi. Menahannya tidak menghasilkan kontrol apa pun — yang terjadi justru akun penyetuju dipinjam, dan jejaknya hilang. Angkanya diatur di berkas <span class="panduan-kode">config/pengadaan.php</span>; isi 0 bila seluruh pesanan harus disetujui orang lain.</p>
                 </li>
                 <li>Saat disetujui, nomor PO terbit — contohnya <span class="panduan-kode">{{ $contoh['nomorPo'] }}</span> — dan pesanan siap dikirim ke vendor.</li>
             </ul>
@@ -283,7 +303,8 @@
                     Cara tercepat: dari daftar <strong>Pesanan Pembelian</strong>, klik <strong>Buat Penerimaan</strong> pada pesanannya. Halaman penerimaan terbuka dengan pesanan, cabang, dan vendor sudah terisi, dan sisa unit yang belum diterima sudah menjadi baris — lengkap dengan harga serta garansinya.
                     <p>Bisa juga lewat <strong>Pengadaan → Penerimaan Barang → Buat</strong>, lalu pilih pesanannya sendiri. Setelah pesanan terpilih, tombol <strong>Tarik Sisa Pesanan</strong> di atas tabel unit melakukan hal yang sama.</p>
                 </li>
-                <li>Isi nomor surat jalan bila ada.</li>
+                <li>Isi nomor surat jalan bila ada. Untuk belanja marketplace, isi <strong>Nomor Nota / Pesanan</strong> dengan nomor pesanannya — nomor itu menempel pada tiap unit aset sebagai bukti beli, menggantikan nomor faktur.</li>
+                <li>Pilih vendornya di sini bila pesanannya belum menentukan toko.</li>
                 <li>
                     Barang yang datang kurang dari yang dipesan? Hapus baris yang tidak jadi datang. Sisanya tetap bisa diterima lewat penerimaan berikutnya.
                     <p>Nomor seri boleh dikosongkan selama masih draf, jadi penerimaan bisa disimpan setengah jadi dan dilanjutkan besok.</p>
@@ -296,7 +317,7 @@
 
             <p>Menerima sebagian tidak masalah — pesanan otomatis berstatus <strong>Diterima Sebagian</strong>, dan sisanya bisa diterima lewat penerimaan berikutnya. Menerima melebihi sisa pesanan akan ditolak.</p>
 
-            <p>Pembelian mendadak, hibah, atau retur vendor yang tidak punya pesanan tetap bisa dicatat: kosongkan kolom Pesanan, lalu isi barang, harga, dan garansinya sendiri.</p>
+            <p>Pembelian mendadak, hibah, atau retur vendor yang tidak punya pesanan tetap bisa dicatat: kosongkan kolom Pesanan, lalu isi barang, harga, dan garansinya sendiri. Simpan bukti belinya lewat <strong>Lampiran</strong> pada asetnya, jenis Faktur.</p>
 
             <h3>Mencatat tagihan dan pembayaran</h3>
 

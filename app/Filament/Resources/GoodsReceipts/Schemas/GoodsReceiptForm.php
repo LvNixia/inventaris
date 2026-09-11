@@ -59,7 +59,13 @@ class GoodsReceiptForm
 
                                 if ($po) {
                                     $set('branch_id', $po->branch_id);
-                                    $set('vendor_id', $po->vendor_id);
+
+                                    // Pesanan boleh belum bervendor: tokonya
+                                    // baru dipilih saat belanja, jadi isian
+                                    // yang sudah ada tidak dikosongkan.
+                                    if ($po->vendor_id) {
+                                        $set('vendor_id', $po->vendor_id);
+                                    }
                                 }
 
                                 $set('items', []);
@@ -95,6 +101,13 @@ class GoodsReceiptForm
 
                         TextInput::make('delivery_document_number')
                             ->label('Nomor Surat Jalan')
+                            ->disabled(fn (?GoodsReceipt $record) => $record && ! $record->isEditable())
+                            ->dehydrated(),
+
+                        TextInput::make('purchase_reference')
+                            ->label('Nomor Nota / Pesanan')
+                            ->placeholder('Nomor pesanan marketplace atau nomor nota toko')
+                            ->helperText('Tersalin ke unit asetnya sebagai bukti beli. Isi bila pembeliannya lunas di muka tanpa faktur.')
                             ->disabled(fn (?GoodsReceipt $record) => $record && ! $record->isEditable())
                             ->dehydrated(),
 

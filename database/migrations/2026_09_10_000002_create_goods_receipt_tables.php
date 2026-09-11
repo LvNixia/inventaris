@@ -24,6 +24,12 @@ return new class extends Migration
             $table->foreignId('vendor_id')->nullable()->constrained('vendors');
             $table->date('receipt_date');
             $table->string('delivery_document_number')->nullable();
+            /*
+             * Nomor nota atau nomor pesanan marketplace. Pembelian yang lunas
+             * di muka tidak melahirkan faktur, jadi tanpa kolom ini unit
+             * asetnya kehilangan rujukan ke bukti belinya.
+             */
+            $table->string('purchase_reference')->nullable();
             $table->enum('status', ['draft', 'received', 'cancelled'])->default('draft');
             $table->text('notes')->nullable();
             $table->foreignId('received_by')->nullable()->constrained('users');

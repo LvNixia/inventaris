@@ -126,6 +126,7 @@ class DemoDataSeeder extends Seeder
             $this->buatBarang();
             $this->buatPembelian();
             $this->buatTagihan();
+            $this->belanjaMarketplace();
             $this->pengadaanBerjalan();
             $this->serahkanAset();
             $this->tarikSebagian();
@@ -451,14 +452,18 @@ class DemoDataSeeder extends Seeder
      * Ajukan lalu setujui pesanan. Pengaju tidak boleh menyetujui pengajuannya
      * sendiri, jadi penggunanya berganti di tengah.
      */
-    protected function setujuiPesanan(PurchaseOrder $po): PurchaseOrder
+    protected function setujuiPesanan(PurchaseOrder $po, bool $mandiri = false): PurchaseOrder
     {
         $poService = app(PurchaseOrderService::class);
 
         Auth::login($this->pengadaan);
         $po = $poService->submit($po);
 
-        Auth::login($this->admin);
+        // Pesanan bernilai kecil boleh disetujui pengajunya sendiri; batasnya
+        // ada di config/pengadaan.php.
+        if (! $mandiri) {
+            Auth::login($this->admin);
+        }
 
         return $poService->approve($po);
     }
@@ -630,6 +635,43 @@ class DemoDataSeeder extends Seeder
         }
 
         return $kelompok;
+    }
+
+    /**
+     * Belanja lewat marketplace: disetujui dulu, tokonya dipilih belakangan,
+     * lunas di muka sehingga tidak melahirkan faktur.
+     *
+     * Jalur ini yang paling sering dipakai sehari-hari, jadi data simulasinya
+     * harus punya contohnya — termasuk nomor pesanan yang menempel pada unit
+     * asetnya sebagai ganti nomor faktur.
+     */
+    protected function belanjaMarketplace(): void
+    {
+        // Pesanan diajukan tanpa vendor: yang disetujui barang dan plafonnya.
+        $po = $this->buatPesanan(
+            $this->products['mk270'], 3, 375_000, 12, 'JKT', null, now()->subDays(16),
+        );
+
+        $po->update(['payment_term_id' => PaymentTerm::where('code', 'cbd')->value('id')]);
+
+        // Nilainya di bawah batas, jadi staf pengadaan menyetujuinya sendiri.
+        $po = $this->setujuiPesanan($po, mandiri: true);
+
+        // Barang datang dari toko yang baru dipilih saat checkout, dan harganya
+        // ternyata sedikit lebih murah daripada perkiraan.
+        $gr = $this->buatPenerimaan($po, array_fill(0, 3, ['serial_number' => null]), now()->subDays(11));
+
+        $gr->update([
+            'vendor_id' => Vendor::where('name', 'Mitra Data Solusi')->value('id'),
+            'purchase_reference' => 'INV/'.now()->subDays(16)->format('Ymd').'/MPL/'.random_int(1000000, 9999999),
+            'notes' => 'Dibeli lewat marketplace, sudah lunas saat pemesanan.',
+        ]);
+
+        $gr->items()->update(['unit_price' => 349_000]);
+
+        // Sengaja tidak dimasukkan ke $this->receipts: pembelian yang sudah
+        // lunas tidak boleh ikut ditagihkan lewat faktur.
+        app(GoodsReceiptService::class)->receive($gr->refresh());
     }
 
     /**
@@ -1117,6 +1159,7 @@ class DemoDataSeeder extends Seeder
         $this->command->line('  - faktur vendor: lunas, dibayar sebagian, dan lewat jatuh tempo');
         $this->command->line('  - pesanan berjalan: draf, menunggu persetujuan, disetujui, diterima sebagian, dibatalkan');
         $this->command->line('  - 1 penerimaan draf yang tertahan karena nomor serinya belum lengkap');
+        $this->command->line('  - 1 belanja marketplace: disetujui sendiri (di bawah batas), tanpa vendor, tanpa faktur');
 
         $this->command->newLine();
         $this->command->line('Akun untuk masuk (kata sandi: '.self::KATA_SANDI_DEMO.'):');

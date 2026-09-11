@@ -38,7 +38,12 @@ return new class extends Migration
             // Nomor baru terbit saat PO disetujui, mengikuti pola surat serah terima.
             $table->string('po_number')->nullable()->unique();
             $table->foreignId('branch_id')->constrained('branches');
-            $table->foreignId('vendor_id')->constrained('vendors');
+            /*
+             * Nullable: persetujuan sering turun sebelum tokonya dipilih —
+             * yang disetujui adalah barang dan plafon harganya. Vendor
+             * sebenarnya tercatat saat barangnya diterima.
+             */
+            $table->foreignId('vendor_id')->nullable()->constrained('vendors');
             $table->foreignId('payment_term_id')->nullable()->constrained('payment_terms');
             $table->date('po_date');
             $table->date('expected_date')->nullable();

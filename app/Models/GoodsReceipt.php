@@ -109,6 +109,89 @@ class GoodsReceipt extends Model
     }
 
     /**
+     * Penerimaan yang layak dimasukkan ke sebuah faktur.
+     *
+     * Selain belum ditagih faktur lain, penerimaannya juga harus belum lunas:
+     * yang sudah dibayar di muka tidak punya tagihan untuk dicatat.
+     */
+    public function scopeBisaDitagih($query, ?int $kecualiInvoiceId = null)
+    {
+        return $query->belumDitagih($kecualiInvoiceId)->whereNull('purchase_reference');
+    }
+
+    /**
+     * Bandingkan harga yang benar-benar dibayar dengan yang disetujui di
+     * pesanan, hanya untuk unit yang ada di penerimaan ini.
+     *
+     * Perbandingannya per unit, bukan terhadap total pesanan, supaya
+     * penerimaan sebagian tidak selalu terlihat lebih murah. Selisih harga itu
+     * wajar — yang tidak wajar adalah selisih yang tidak diketahui siapa pun,
+     * jadi hasilnya dipakai untuk memberi tahu, bukan menolak.
+     *
+     * @return array{pesanan: float, penerimaan: float, selisih: float, persen: float}|null
+     *                                                                                      Null bila penerimaan ini tidak berasal dari pesanan.
+     */
+    public function selisihHarga(): ?array
+    {
+        $this->loadMissing('items.purchaseOrderItem');
+
+        $terpesan = $this->items->filter(fn (GoodsReceiptItem $item): bool => $item->purchaseOrderItem !== null);
+
+        if ($terpesan->isEmpty()) {
+            return null;
+        }
+
+        $pesanan = (float) $terpesan->sum(fn (GoodsReceiptItem $item): float => (float) $item->purchaseOrderItem->unit_price);
+        $penerimaan = (float) $terpesan->sum(
+            fn (GoodsReceiptItem $item): float => (float) ($item->unit_price ?? $item->purchaseOrderItem->unit_price)
+        );
+
+        $selisih = $penerimaan - $pesanan;
+
+        return [
+            'pesanan' => $pesanan,
+            'penerimaan' => $penerimaan,
+            'selisih' => $selisih,
+            'persen' => $pesanan > 0 ? $selisih / $pesanan * 100 : 0.0,
+        ];
+    }
+
+    /**
+     * Ringkasan selisih harga dalam kalimat, atau null bila masih dalam batas
+     * wajar. Ambangnya 10 persen: pergerakan harga di bawah itu terlalu sering
+     * terjadi untuk pantas diperingatkan.
+     */
+    public function peringatanSelisihHarga(float $ambangPersen = 10): ?string
+    {
+        $selisih = $this->selisihHarga();
+
+        if (! $selisih || abs($selisih['persen']) < $ambangPersen) {
+            return null;
+        }
+
+        return sprintf(
+            'Harga %s dari pesanan: Rp %s menjadi Rp %s (%s%s%%).',
+            $selisih['selisih'] > 0 ? 'naik' : 'turun',
+            number_format($selisih['pesanan'], 0, ',', '.'),
+            number_format($selisih['penerimaan'], 0, ',', '.'),
+            $selisih['selisih'] > 0 ? '+' : '',
+            number_format($selisih['persen'], 1, ',', '.'),
+        );
+    }
+
+    /**
+     * Penerimaan ini lunas di muka?
+     *
+     * Nomor nota terisi berarti barangnya sudah dibayar saat dipesan — belanja
+     * marketplace atau beli langsung di toko. Penerimaan seperti itu tidak
+     * boleh melahirkan tagihan, karena uangnya sudah keluar.
+     */
+    public function lunasDiMuka(): bool
+    {
+        return filled($this->purchase_reference);
+    }
+
+    /**
      * PPN penerimaan ini, dihitung dari persentase pajak baris pesanannya.
      *
      * Penerimaan tanpa pesanan tidak punya persentase pajak, jadi nilainya nol

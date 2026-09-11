@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Role;
 use App\Models\Scopes\BranchScope;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -99,5 +100,30 @@ class PurchaseOrder extends Model
     protected static function booted(): void
     {
         static::addGlobalScope(new BranchScope);
+    }
+
+    /**
+     * Pesanan ini boleh disetujui oleh pengguna tersebut?
+     *
+     * Aturannya sama persis dengan yang dijaga PurchaseOrderService; di sini
+     * hanya dipakai untuk menentukan tombolnya muncul atau tidak, supaya
+     * pengguna tidak menekan tombol yang pasti ditolak.
+     */
+    public function bolehDisetujuiOleh(?User $pengguna): bool
+    {
+        if ($this->status !== 'pending_approval' || ! $pengguna) {
+            return false;
+        }
+
+        if (! in_array($pengguna->role, [Role::AdminPusat, Role::AdminCabang], true)) {
+            return false;
+        }
+
+        if ((float) $this->total <= (float) config('pengadaan.batas_persetujuan_mandiri', 0)) {
+            return true;
+        }
+
+        return $pengguna->role === Role::AdminPusat
+            && (int) $this->submitted_by !== (int) $pengguna->id;
     }
 }

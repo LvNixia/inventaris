@@ -93,10 +93,17 @@ class GoodsReceiptsTable
                     ->visible(fn (GoodsReceipt $record): bool => $record->status === 'draft')
                     ->requiresConfirmation()
                     ->modalHeading('Setujui penerimaan barang')
-                    ->modalDescription('Unit aset akan dibuat sebanyak baris pada penerimaan ini, lengkap dengan kode dan harganya.')
+                    // Selisih harga terhadap pesanan disebutkan sebelum
+                    // disetujui, bukan sesudah: yang menyetujui perlu tahu
+                    // realisasinya meleset saat masih bisa membatalkan.
+                    ->modalDescription(fn (GoodsReceipt $record): string => trim(
+                        'Unit aset akan dibuat sebanyak baris pada penerimaan ini, lengkap dengan kode dan harganya. '
+                        .($record->peringatanSelisihHarga() ?? '')
+                    ))
                     ->action(fn (GoodsReceipt $record) => static::jalankan(
                         fn () => app(GoodsReceiptService::class)->receive($record),
                         'Penerimaan disetujui',
+                        $record->peringatanSelisihHarga(),
                     )),
 
                 Action::make('batalkan')
@@ -122,7 +129,7 @@ class GoodsReceiptsTable
                     // Hanya untuk penerimaan yang sudah disetujui dan belum
                     // ditagih; nilai fakturnya ikut terisi dari harga unitnya.
                     ->visible(fn (GoodsReceipt $record): bool => $record->status === 'received'
-                        && GoodsReceipt::query()->belumDitagih()->whereKey($record->id)->exists())
+                        && GoodsReceipt::query()->bisaDitagih()->whereKey($record->id)->exists())
                     ->url(fn (GoodsReceipt $record): string => PurchaseInvoiceResource::getUrl('create', [
                         'goods_receipt_id' => $record->id,
                     ])),
@@ -140,12 +147,17 @@ class GoodsReceiptsTable
      * Pesan penolakan bisa memuat beberapa baris sekaligus, jadi ditampilkan
      * apa adanya supaya seluruh kekurangan terbaca.
      */
-    protected static function jalankan(callable $aksi, string $judulSukses): void
+    protected static function jalankan(callable $aksi, string $judulSukses, ?string $catatan = null): void
     {
         try {
             $aksi();
 
-            Notification::make()->success()->title($judulSukses)->send();
+            Notification::make()
+                ->success()
+                ->title($judulSukses)
+                ->body($catatan)
+                ->when($catatan !== null, fn (Notification $notifikasi) => $notifikasi->persistent())
+                ->send();
         } catch (\Exception $e) {
             Notification::make()
                 ->danger()
